@@ -7,10 +7,10 @@
   --accent: #6c8bff;
   --danger: #ff5d6c;
 
-  /* Puzzle board — light "paper" surface with dark navy arrows, like the ref. */
+  /* Puzzle board — light "paper" surface with green snakes. */
   --board-bg: #ffffff;
-  --arrow-ink: #1f2a5e;
-  --arrow-hover: #33409a;
+  --arrow-ink: #4fa544;
+  --arrow-hover: #3a8b34;
   --radius: 16px;
 }
 
@@ -185,7 +185,7 @@
 .train {
   fill: none;
   stroke: var(--arrow-ink);
-  stroke-width: 0.11;
+  stroke-width: 0.13;
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;

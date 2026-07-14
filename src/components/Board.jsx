@@ -30,7 +30,7 @@ export default function Board({ game, flying, blocked, onArrow }) {
             arrow={arrow}
             blocked={blocked === arrow.id}
             onClick={() => onArrow(arrow.id)}
-            aria={`Bent arrow pointing ${DIR_WORD[arrow.dir]}, length ${arrow.cells.length}`}
+            aria={`Snake facing ${DIR_WORD[arrow.dir]}, length ${arrow.cells.length}`}
           />
         ))}
         {flying.map(({ key, train }) => (

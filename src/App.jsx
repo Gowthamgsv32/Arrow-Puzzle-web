@@ -65,8 +65,8 @@ function App() {
         </div>
 
         <p className="app__hint">
-          Tap an arrow to fly it off the board. If the path is blocked, you lose
-          a heart. Clear them all to win.
+          Tap a snake to send it slithering off the board. If its path is
+          blocked, you lose a heart. Clear them all to win.
         </p>
       </div>
     </div>
