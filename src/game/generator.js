@@ -9,6 +9,7 @@
 
 import { DIRS, DIR_LIST, STARTING_LIVES } from './constants.js'
 import { EMPTY, idx, inBounds } from './engine.js'
+import { SHAPE_NAMES, shapeMask } from './shapes.js'
 
 function mulberry32(seed) {
   let a = seed >>> 0
@@ -47,16 +48,29 @@ function forwardClear(grid, rows, cols, r, c, dir, ownCells) {
   return true
 }
 
-// Grow a self-avoiding polyline of bent segments over empty cells.
+// Grow a self-avoiding polyline of bent segments over empty, allowed cells.
 // Returns { cells, verts, segDirs } (tail → end) or null.
-function growPolyline(grid, rows, cols, rng, maxSeg, maxLen) {
+function growPolyline(grid, rows, cols, rng, maxSeg, maxLen, allowedCells) {
+  const free = (r, c) => {
+    const i = idx(r, c, cols)
+    return grid[i] === EMPTY && (!allowedCells || allowedCells.has(i))
+  }
+
   let start = null
-  for (let t = 0; t < 60; t++) {
-    const r = Math.floor(rng() * rows)
-    const c = Math.floor(rng() * cols)
-    if (grid[idx(r, c, cols)] === EMPTY) {
-      start = [r, c]
-      break
+  if (allowedCells) {
+    const pool = [...allowedCells].filter((i) => grid[i] === EMPTY)
+    if (pool.length) {
+      const i = pool[Math.floor(rng() * pool.length)]
+      start = [Math.floor(i / cols), i % cols]
+    }
+  } else {
+    for (let t = 0; t < 60; t++) {
+      const r = Math.floor(rng() * rows)
+      const c = Math.floor(rng() * cols)
+      if (grid[idx(r, c, cols)] === EMPTY) {
+        start = [r, c]
+        break
+      }
     }
   }
   if (!start) return null
@@ -84,7 +98,7 @@ function growPolyline(grid, rows, cols, rng, maxSeg, maxLen) {
         const nc = cc + dc
         if (!inBounds(nr, nc, rows, cols)) break
         const i = idx(nr, nc, cols)
-        if (grid[i] !== EMPTY || used.has(i)) break
+        if (!free(nr, nc) || used.has(i)) break
         cr = nr
         cc = nc
         used.add(i)
@@ -113,21 +127,22 @@ function growPolyline(grid, rows, cols, rng, maxSeg, maxLen) {
  * @returns {{ grid, arrows, rows, cols, count }}
  */
 export function generateLevel(rows, cols, opts = {}) {
-  const { fill = 0.55, maxSeg = 4, maxLen = 5, seed } = opts
+  const { fill = 0.55, maxSeg = 4, maxLen = 5, seed, mask } = opts
   const rng = opts.rng || (seed != null ? mulberry32(seed) : Math.random)
 
   const grid = new Array(rows * cols).fill(EMPTY)
   const arrows = {}
-  const target = Math.max(1, Math.floor(rows * cols * fill))
+  const region = mask ? mask.size : rows * cols
+  const target = Math.max(1, Math.floor(region * fill))
 
   let id = 0
   let occupied = 0
   let attempts = 0
-  const maxAttempts = rows * cols * 12
+  const maxAttempts = region * 16
 
   while (occupied < target && attempts < maxAttempts) {
     attempts++
-    const poly = growPolyline(grid, rows, cols, rng, maxSeg, maxLen)
+    const poly = growPolyline(grid, rows, cols, rng, maxSeg, maxLen, mask)
     if (!poly) continue
 
     const { cells, verts, segDirs } = poly
@@ -177,29 +192,29 @@ export function generateLevel(rows, cols, opts = {}) {
   return { grid, arrows, rows, cols, count: Object.keys(arrows).length }
 }
 
-/** Difficulty knobs that scale with the level number. */
+/** Difficulty knobs + which shape to fill, scaling with the level number. */
 export function levelConfig(level) {
-  const size = Math.min(8 + Math.floor((level - 1) / 2), 16)
-  const fill = Math.min(0.45 + (level - 1) * 0.02, 0.68)
-  const maxSeg = Math.min(3 + Math.floor((level - 1) / 3), 5)
-  return { rows: size, cols: size, fill, maxSeg, maxLen: 5, lives: STARTING_LIVES }
+  const size = Math.min(16 + Math.floor((level - 1) / 3), 22)
+  const fill = Math.min(0.82 + (level - 1) * 0.01, 0.95)
+  const maxSeg = Math.min(3 + Math.floor((level - 1) / 4), 5)
+  const shape = SHAPE_NAMES[(level - 1) % SHAPE_NAMES.length]
+  return { rows: size, cols: size, fill, maxSeg, maxLen: 4, shape, lives: STARTING_LIVES }
 }
 
-/** Difficulty label shown in the HUD. */
-export function difficultyLabel(level) {
-  if (level <= 3) return 'Easy'
-  if (level <= 8) return 'Medium'
-  if (level <= 15) return 'Hard'
-  return 'Expert'
+const CAP = { heart: 'Heart', ball: 'Ball', star: 'Star', apple: 'Apple', diamond: 'Diamond' }
+export function shapeLabel(shape) {
+  return CAP[shape] || 'Shape'
 }
 
 /** Create a fresh game state for a given level. */
 export function createGame(level) {
   const cfg = levelConfig(level)
+  const mask = shapeMask(cfg.shape, cfg.rows)
   const { grid, arrows, rows, cols, count } = generateLevel(cfg.rows, cfg.cols, {
     fill: cfg.fill,
     maxSeg: cfg.maxSeg,
     maxLen: cfg.maxLen,
+    mask,
   })
   return {
     level,
@@ -210,5 +225,6 @@ export function createGame(level) {
     count,
     lives: cfg.lives,
     status: 'playing',
+    shape: cfg.shape,
   }
 }

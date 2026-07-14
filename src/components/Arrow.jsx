@@ -2,12 +2,15 @@
 // Cell (r,c) centre is (c + 0.5, r + 0.5). A wide transparent "hit" path makes
 // the thin line easy to tap.
 
-function pathD(verts) {
-  return verts.map(([r, c], i) => `${i ? 'L' : 'M'}${c + 0.5},${r + 0.5}`).join(' ')
+const cx = (c) => c + 0.5
+const cy = (r) => r + 0.5
+
+function staticD(verts) {
+  return verts.map(([r, c], i) => `${i ? 'L' : 'M'}${cx(c)},${cy(r)}`).join(' ')
 }
 
 export default function ArrowPath({ arrow, blocked, onClick, aria }) {
-  const d = pathD(arrow.verts)
+  const d = staticD(arrow.verts)
   return (
     <g
       className={`arrow${blocked ? ' arrow--blocked' : ''}`}
@@ -25,7 +28,7 @@ export default function ArrowPath({ arrow, blocked, onClick, aria }) {
           d={d}
           fill="none"
           stroke="transparent"
-          strokeWidth="0.7"
+          strokeWidth="0.6"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -34,7 +37,7 @@ export default function ArrowPath({ arrow, blocked, onClick, aria }) {
         className="arrow__ink"
         d={d}
         fill="none"
-        strokeWidth="0.12"
+        strokeWidth="0.09"
         strokeLinecap="round"
         strokeLinejoin="round"
         markerEnd="url(#arrowhead)"
@@ -43,21 +46,35 @@ export default function ArrowPath({ arrow, blocked, onClick, aria }) {
   )
 }
 
+export function TrainPath({ train }) {
+  return (
+    <path
+      className="train"
+      d={train.d}
+      style={{
+        '--own': train.ownLen,
+        '--total': train.total,
+        '--dur': `${train.durMs}ms`,
+      }}
+    />
+  )
+}
+
 // Shared arrowhead marker (place once per <svg>). Uses context-stroke so the
-// head always matches its line's colour (navy / hover / red).
+// head always matches its line's colour.
 export function ArrowDefs() {
   return (
     <defs>
       <marker
         id="arrowhead"
         markerUnits="userSpaceOnUse"
-        markerWidth="0.7"
-        markerHeight="0.7"
-        refX="0.12"
-        refY="0.3"
+        markerWidth="0.55"
+        markerHeight="0.55"
+        refX="0.1"
+        refY="0.25"
         orient="auto"
       >
-        <path d="M0,0 L0.58,0.3 L0,0.6 Z" fill="context-stroke" />
+        <path d="M0,0 L0.5,0.25 L0,0.5 Z" fill="context-stroke" />
       </marker>
     </defs>
   )

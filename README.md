@@ -4,16 +4,17 @@ A web-based Arrow Puzzle game, built with React and Vite.
 
 ## How to play
 
-The board is packed with **thin bent arrow lines** — each is a self-avoiding
-polyline that turns 90° at its corners, with an arrowhead at its head end. Tap
-a line to slide it off the board **in the direction its arrowhead points** —
-but only if the straight path from the head to the edge is empty. If another
-line blocks that path, nothing is released and you lose a heart. Lose all three
-hearts and the round is over. Clear every line to advance to the next level.
+Each level draws a **shape** — heart, ball, star, apple, diamond — out of many
+**thin bent arrow lines**. Every line is a self-avoiding polyline that turns 90°
+at its corners, with an arrowhead at its head. Tap a line to **slide it off the
+board like a train**, head-first along its own path — but only if the straight
+path from its head to the edge is empty. If another line blocks that path,
+nothing is released and you lose a heart. Lose all three hearts and the round is
+over. Clear every line to advance to the next level (and the next shape).
 
-Lines are generated **randomly and never overlap**, and every level is
-**guaranteed solvable** (and can never dead-end). Your progress is saved
-locally so you resume where you left off.
+Lines are generated **randomly and never overlap**, always fit inside the
+level's shape, and every level is **guaranteed solvable** (and can never
+dead-end). Your progress is saved locally so you resume where you left off.
 
 ## Getting started
 
@@ -40,14 +41,16 @@ src/
   game/
     constants.js      # directions
     engine.js         # pure rules: bent lines, release logic, win/lose
-    generator.js      # random non-overlapping solvable line generator
+    generator.js      # random non-overlapping solvable line generator (masked)
+    shapes.js         # silhouette masks (heart, ball, star, apple, diamond)
+    train.js          # travel-path math for the slide-out animation
     *.test.js         # unit tests (zero-dependency, node:test)
   hooks/
     useGame.js        # React binding + localStorage progress
   components/
-    HUD.jsx           # level, line count, hearts
+    HUD.jsx           # level, line count, hearts, shape name
     Arrow.jsx         # one thin bent line + arrowhead, drawn as an SVG path
-    Board.jsx         # board SVG + fly-off / blocked rendering
+    Board.jsx         # board SVG + train (slide-out) rendering
     Overlay.jsx       # win / lose modal
 public/               # static assets
 vite.config.js        # Vite configuration

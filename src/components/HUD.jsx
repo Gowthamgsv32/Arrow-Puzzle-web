@@ -1,5 +1,5 @@
 import { STARTING_LIVES } from '../game/constants.js'
-import { difficultyLabel } from '../game/generator.js'
+import { shapeLabel } from '../game/generator.js'
 
 function Hearts({ lives }) {
   return (
@@ -17,7 +17,7 @@ function Hearts({ lives }) {
   )
 }
 
-export default function HUD({ level, arrows, lives, onRestart }) {
+export default function HUD({ level, arrows, lives, shape, onRestart }) {
   return (
     <header className="hud">
       <div className="hud__top">
@@ -30,7 +30,7 @@ export default function HUD({ level, arrows, lives, onRestart }) {
           ↺
         </button>
         <h1 className="hud__level">Level {level}</h1>
-        <span className="hud__badge">{difficultyLabel(level)}</span>
+        <span className="hud__badge">{shapeLabel(shape)}</span>
       </div>
 
       <div className="hud__stats">

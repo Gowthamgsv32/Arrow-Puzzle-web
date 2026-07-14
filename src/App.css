@@ -181,56 +181,28 @@
   }
 }
 
-/* ---------- Flying arrows (release animation) ---------- */
-.fly {
-  position: absolute;
-  inset: clamp(6px, 2cqw, 14px);
-  width: auto;
-  height: auto;
-  overflow: visible;
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-.fly .arrow__ink {
+/* ---------- Releasing arrows: slide out like a train ---------- */
+.train {
+  fill: none;
   stroke: var(--arrow-ink);
+  stroke-width: 0.11;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+  /* Show a single dash the length of the line, then slide it forward along
+     the whole travel path so the line flows head-first off the board. */
+  /* px == user units for SVG geometry; the custom props are unitless numbers. */
+  stroke-dasharray: calc(var(--own) * 1px) calc(var(--total) * 1px);
+  animation: train var(--dur) linear forwards;
 }
-.fly--U {
-  animation: fly-u var(--fly, 0.42s) cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-.fly--D {
-  animation: fly-d var(--fly, 0.42s) cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-.fly--L {
-  animation: fly-l var(--fly, 0.42s) cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-.fly--R {
-  animation: fly-r var(--fly, 0.42s) cubic-bezier(0.4, 0, 1, 1) forwards;
-}
-@keyframes fly-u {
+@keyframes train {
+  from {
+    stroke-dashoffset: 0px;
+  }
   to {
-    transform: translateY(-115%);
-    opacity: 0;
+    stroke-dashoffset: calc(var(--total) * -1px);
   }
 }
-@keyframes fly-d {
-  to {
-    transform: translateY(115%);
-    opacity: 0;
-  }
-}
-@keyframes fly-l {
-  to {
-    transform: translateX(-115%);
-    opacity: 0;
-  }
-}
-@keyframes fly-r {
-  to {
-    transform: translateX(115%);
-    opacity: 0;
-  }
-}
-
 /* ---------- Overlay (win / lose) ---------- */
 .overlay {
   position: absolute;
@@ -299,7 +271,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fly,
+  .train,
   .arrow--blocked,
   .overlay {
     animation-duration: 0.01ms;
