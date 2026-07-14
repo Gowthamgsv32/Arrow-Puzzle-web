@@ -12,9 +12,10 @@ path from its head to the edge is empty. If another line blocks that path,
 nothing is released and you lose a heart. Lose all three hearts and the round is
 over. Clear every line to advance to the next level (and the next shape).
 
-Lines are generated **randomly and never overlap**, always fit inside the
-level's shape, and every level is **guaranteed solvable** (and can never
-dead-end). Your progress is saved locally so you resume where you left off.
+The lines **completely fill the shape with no interior gaps** (dozens of arrows
+per level), never overlap, and every level is **guaranteed solvable** (and can
+never dead-end). Your progress is saved locally so you resume where you left
+off.
 
 ## Getting started
 
@@ -61,12 +62,14 @@ eslint.config.js      # ESLint configuration
 
 - **`game/engine.js`** is pure and framework-free — all rules live here and are
   covered by unit tests, so the logic is verifiable without a browser.
-- **Solvability guarantee:** the generator grows each bent line over empty
-  cells and only keeps it if its head's straight path to the edge is currently
-  clear (of other lines *and* its own body). Removing the lines in reverse
-  placement order is therefore always a valid solution, and because removing a
-  line only ever *frees* cells, no play order can dead-end. A test proves this
-  across 200 random boards.
+- **Full fill + solvability guarantee (carve/peel):** the generator simulates
+  *clearing* the shape. It repeatedly finds a cell that can exit now (a clear
+  straight path to the board edge), makes it a head, and grows a bent body
+  backward into the remaining cells, removing them. The order it carves is a
+  valid solve order, so every shape cell ends up in a line (no gaps), each
+  line's head path is clear when released (solvable), and because removing a
+  line only frees cells, no play order can dead-end. Tests prove full coverage
+  and solvability across many shapes and seeds.
 
 ## Deployment (GitHub Pages)
 

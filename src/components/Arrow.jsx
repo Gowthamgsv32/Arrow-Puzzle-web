@@ -1,16 +1,11 @@
+import { arrowD } from '../game/train.js'
+
 // One bent arrow line, drawn inside the board's SVG (cell units: 1 = one cell).
 // Cell (r,c) centre is (c + 0.5, r + 0.5). A wide transparent "hit" path makes
 // the thin line easy to tap.
 
-const cx = (c) => c + 0.5
-const cy = (r) => r + 0.5
-
-function staticD(verts) {
-  return verts.map(([r, c], i) => `${i ? 'L' : 'M'}${cx(c)},${cy(r)}`).join(' ')
-}
-
 export default function ArrowPath({ arrow, blocked, onClick, aria }) {
-  const d = staticD(arrow.verts)
+  const d = arrowD(arrow)
   return (
     <g
       className={`arrow${blocked ? ' arrow--blocked' : ''}`}

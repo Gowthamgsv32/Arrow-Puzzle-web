@@ -1,11 +1,14 @@
-// Level generator: random, non-overlapping, guaranteed-solvable BENT lines.
+// Level generator: fill a shape completely with bent arrow lines, with NO gaps,
+// and stay guaranteed-solvable.
 //
-// Each line is a self-avoiding polyline over currently-empty cells. Its head is
-// chosen at an endpoint whose straight forward path to the edge is currently
-// clear. Because we only ever place a line whose head path is clear of
-// already-placed lines, removing lines in reverse placement order is always a
-// valid solution — and since removing a line only frees cells, no play order
-// can ever dead-end.
+// Method — "carve/peel": simulate clearing the shape. Repeatedly find a cell
+// that could exit right now (a clear straight path from it to the board edge
+// through already-removed / non-shape cells), make it a head, and grow a bent
+// body backward into the still-present cells; remove them all. The order we
+// carve is exactly a valid solve order, so:
+//   - every shape cell ends up in some line  -> no interior gaps
+//   - each line's head path is clear when it is released -> solvable
+//   - removing a line only frees cells        -> no play order can dead-end
 
 import { DIRS, DIR_LIST, STARTING_LIVES } from './constants.js'
 import { EMPTY, idx, inBounds } from './engine.js'
@@ -30,163 +33,125 @@ function shuffle(arr, rng) {
   return arr
 }
 
-const OPP = { U: 'D', D: 'U', L: 'R', R: 'L' }
-const PERP = { U: ['L', 'R'], D: ['L', 'R'], L: ['U', 'D'], R: ['U', 'D'] }
-
-// Is the straight path beyond (r,c) in `dir` clear of occupied cells — and of
-// the line's own cells (a bent line must not point back into its own body)?
-function forwardClear(grid, rows, cols, r, c, dir, ownCells) {
+// Straight path from (r,c) toward the edge in `dir` is clear when no cell along
+// it is still present.
+function clearToEdge(present, cols, rows, r, c, dir) {
   const [dr, dc] = DIRS[dir]
   let nr = r + dr
   let nc = c + dc
   while (inBounds(nr, nc, rows, cols)) {
-    const i = idx(nr, nc, cols)
-    if (grid[i] !== EMPTY || (ownCells && ownCells.has(i))) return false
+    if (present.has(idx(nr, nc, cols))) return false
     nr += dr
     nc += dc
   }
   return true
 }
 
-// Grow a self-avoiding polyline of bent segments over empty, allowed cells.
-// Returns { cells, verts, segDirs } (tail → end) or null.
-function growPolyline(grid, rows, cols, rng, maxSeg, maxLen, allowedCells) {
-  const free = (r, c) => {
-    const i = idx(r, c, cols)
-    return grid[i] === EMPTY && (!allowedCells || allowedCells.has(i))
+// Ordered adjacent cells -> corner vertices (endpoints + direction changes).
+function cellsToVerts(cells) {
+  if (cells.length <= 2) return cells.slice()
+  const verts = [cells[0]]
+  for (let i = 1; i < cells.length - 1; i++) {
+    const [pr, pc] = cells[i - 1]
+    const [r, c] = cells[i]
+    const [nr, nc] = cells[i + 1]
+    if (r - pr !== nr - r || c - pc !== nc - c) verts.push(cells[i])
   }
-
-  let start = null
-  if (allowedCells) {
-    const pool = [...allowedCells].filter((i) => grid[i] === EMPTY)
-    if (pool.length) {
-      const i = pool[Math.floor(rng() * pool.length)]
-      start = [Math.floor(i / cols), i % cols]
-    }
-  } else {
-    for (let t = 0; t < 60; t++) {
-      const r = Math.floor(rng() * rows)
-      const c = Math.floor(rng() * cols)
-      if (grid[idx(r, c, cols)] === EMPTY) {
-        start = [r, c]
-        break
-      }
-    }
-  }
-  if (!start) return null
-
-  const cells = [start]
-  const verts = [start]
-  const segDirs = []
-  const used = new Set([idx(start[0], start[1], cols)])
-  let cur = start
-  let prevDir = null
-  const segCount = 1 + Math.floor(rng() * maxSeg) // 1..maxSeg segments
-
-  for (let s = 0; s < segCount; s++) {
-    const choices = shuffle(prevDir ? PERP[prevDir].slice() : DIR_LIST.slice(), rng)
-    let moved = false
-    for (const dir of choices) {
-      const [dr, dc] = DIRS[dir]
-      const want = 2 + Math.floor(rng() * (maxLen - 1)) // 2..maxLen
-      let steps = 0
-      let cr = cur[0]
-      let cc = cur[1]
-      const seg = []
-      while (steps < want) {
-        const nr = cr + dr
-        const nc = cc + dc
-        if (!inBounds(nr, nc, rows, cols)) break
-        const i = idx(nr, nc, cols)
-        if (!free(nr, nc) || used.has(i)) break
-        cr = nr
-        cc = nc
-        used.add(i)
-        seg.push([nr, nc])
-        steps++
-      }
-      if (steps >= 1) {
-        for (const cell of seg) cells.push(cell)
-        cur = [cr, cc]
-        verts.push(cur)
-        segDirs.push(dir)
-        prevDir = dir
-        moved = true
-        break
-      }
-    }
-    if (!moved) break
-  }
-
-  if (verts.length < 2) return null
-  return { cells, verts, segDirs }
+  verts.push(cells[cells.length - 1])
+  return verts
 }
 
 /**
- * Build a solvable board of bent lines.
+ * Fully fill a shape mask with bent lines.
  * @returns {{ grid, arrows, rows, cols, count }}
  */
 export function generateLevel(rows, cols, opts = {}) {
-  const { fill = 0.55, maxSeg = 4, maxLen = 5, seed, mask } = opts
+  const { mask, maxLen = 6, seed } = opts
   const rng = opts.rng || (seed != null ? mulberry32(seed) : Math.random)
 
   const grid = new Array(rows * cols).fill(EMPTY)
+  const present = new Set(mask ? mask : Array.from({ length: rows * cols }, (_, i) => i))
   const arrows = {}
-  const region = mask ? mask.size : rows * cols
-  const target = Math.max(1, Math.floor(region * fill))
-
   let id = 0
-  let occupied = 0
-  let attempts = 0
-  const maxAttempts = region * 16
 
-  while (occupied < target && attempts < maxAttempts) {
-    attempts++
-    const poly = growPolyline(grid, rows, cols, rng, maxSeg, maxLen, mask)
-    if (!poly) continue
+  const has = (r, c) => inBounds(r, c, rows, cols) && present.has(idx(r, c, cols))
 
-    const { cells, verts, segDirs } = poly
-    const n = verts.length
-    const ownCells = new Set(cells.map(([r, c]) => idx(r, c, cols)))
-
-    // Candidate heads: either endpoint, pointing outward along its end segment.
-    const endHead = verts[n - 1]
-    const endDir = segDirs[n - 2]
-    const startHead = verts[0]
-    const startDir = OPP[segDirs[0]]
-
-    const candidates = shuffle(
-      [
-        { head: endHead, dir: endDir, reverse: false },
-        { head: startHead, dir: startDir, reverse: true },
-      ],
-      rng,
-    )
-
-    let chosen = null
-    for (const cand of candidates) {
-      if (
-        forwardClear(grid, rows, cols, cand.head[0], cand.head[1], cand.dir, ownCells)
-      ) {
-        chosen = cand
-        break
+  // Choose a head: a present cell with a clear exit, preferring one whose body
+  // can extend (so we make long bent lines, not single dots).
+  function pickHead() {
+    let fallback = null
+    for (let t = 0; t < 50; t++) {
+      const arr = [...present]
+      const i = arr[Math.floor(rng() * arr.length)]
+      const r = Math.floor(i / cols)
+      const c = i % cols
+      for (const d of shuffle(DIR_LIST.slice(), rng)) {
+        if (!clearToEdge(present, cols, rows, r, c, d)) continue
+        const [dr, dc] = DIRS[d]
+        if (has(r - dr, c - dc)) return { r, c, dir: d } // extendable
+        if (!fallback) fallback = { r, c, dir: d }
       }
     }
-    if (!chosen) continue
+    if (fallback) return fallback
+    // Guaranteed progress: the globally topmost present cell can always exit up.
+    let best = null
+    for (const i of present) {
+      const r = Math.floor(i / cols)
+      const c = i % cols
+      if (!best || r < best.r || (r === best.r && c < best.c)) best = { r, c }
+    }
+    return { r: best.r, c: best.c, dir: 'U' }
+  }
 
-    const orderedCells = chosen.reverse ? cells.slice().reverse() : cells
-    const orderedVerts = chosen.reverse ? verts.slice().reverse() : verts
+  while (present.size > 0) {
+    const { r, c, dir } = pickHead()
+    const [dr, dc] = DIRS[dir]
 
-    for (const [r, c] of orderedCells) grid[idx(r, c, cols)] = id
+    // Body: head, then step opposite the exit dir, then wander with bends.
+    const cells = [[r, c]] // head -> tail
+    const used = new Set([idx(r, c, cols)])
+    let cr = r - dr
+    let cc = c - dc
+    let lastR = -dr
+    let lastC = -dc
+
+    if (has(cr, cc) && !used.has(idx(cr, cc, cols))) {
+      cells.push([cr, cc])
+      used.add(idx(cr, cc, cols))
+      while (cells.length < maxLen) {
+        const options = []
+        for (const d of DIR_LIST) {
+          const [er, ec] = DIRS[d]
+          const nr = cr + er
+          const nc = cc + ec
+          if (has(nr, nc) && !used.has(idx(nr, nc, cols))) options.push([er, ec, nr, nc])
+        }
+        if (!options.length) break
+        // Prefer going straight for cleaner runs; otherwise turn randomly.
+        const straight = options.find(([er, ec]) => er === lastR && ec === lastC)
+        const pick = straight && rng() < 0.6 ? straight : options[Math.floor(rng() * options.length)]
+        cr = pick[2]
+        cc = pick[3]
+        lastR = pick[0]
+        lastC = pick[1]
+        cells.push([cr, cc])
+        used.add(idx(cr, cc, cols))
+      }
+    }
+
+    const ordered = cells.slice().reverse() // tail -> head
+    for (const [pr, pc] of ordered) {
+      present.delete(idx(pr, pc, cols))
+      grid[idx(pr, pc, cols)] = id
+    }
     arrows[id] = {
       id,
-      dir: chosen.dir,
-      head: chosen.head,
-      cells: orderedCells,
-      verts: orderedVerts,
+      dir,
+      head: [r, c],
+      cells: ordered,
+      verts: cellsToVerts(ordered),
     }
     id++
-    occupied += orderedCells.length
   }
 
   return { grid, arrows, rows, cols, count: Object.keys(arrows).length }
@@ -194,11 +159,10 @@ export function generateLevel(rows, cols, opts = {}) {
 
 /** Difficulty knobs + which shape to fill, scaling with the level number. */
 export function levelConfig(level) {
-  const size = Math.min(16 + Math.floor((level - 1) / 3), 22)
-  const fill = Math.min(0.82 + (level - 1) * 0.01, 0.95)
-  const maxSeg = Math.min(3 + Math.floor((level - 1) / 4), 5)
+  const size = Math.min(20 + Math.floor((level - 1) / 4), 24)
+  const maxLen = Math.min(5 + Math.floor((level - 1) / 3), 8)
   const shape = SHAPE_NAMES[(level - 1) % SHAPE_NAMES.length]
-  return { rows: size, cols: size, fill, maxSeg, maxLen: 4, shape, lives: STARTING_LIVES }
+  return { rows: size, cols: size, maxLen, shape, lives: STARTING_LIVES }
 }
 
 const CAP = { heart: 'Heart', ball: 'Ball', star: 'Star', apple: 'Apple', diamond: 'Diamond' }
@@ -211,10 +175,8 @@ export function createGame(level) {
   const cfg = levelConfig(level)
   const mask = shapeMask(cfg.shape, cfg.rows)
   const { grid, arrows, rows, cols, count } = generateLevel(cfg.rows, cfg.cols, {
-    fill: cfg.fill,
-    maxSeg: cfg.maxSeg,
-    maxLen: cfg.maxLen,
     mask,
+    maxLen: cfg.maxLen,
   })
   return {
     level,
