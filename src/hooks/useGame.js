@@ -38,10 +38,10 @@ export function useGame() {
   }, [])
 
   const release = useCallback(
-    (r, c) => {
-      const { state, result, dir } = tryRelease(ref.current, r, c)
+    (id) => {
+      const { state, result, arrow } = tryRelease(ref.current, id)
       if (result !== 'none') commit(state)
-      return { result, dir, r, c }
+      return { result, arrow }
     },
     [commit],
   )

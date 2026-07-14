@@ -1,14 +1,14 @@
-// Level generator that produces *guaranteed-solvable* boards.
+// Level generator that produces *guaranteed-solvable* boards of multi-cell
+// arrows.
 //
-// Construction insight: solving means removing arrows one at a time, each with
-// a clear forward path at removal time. So if we *build* the board by placing
-// arrows one at a time and only ever place an arrow whose forward path is
-// currently empty, then removing them in reverse placement order is always a
-// valid solution. (In fact, the latest-placed remaining arrow is always
-// releasable, so no play order can dead-end.)
+// Construction: place arrows one at a time. Each new arrow's head must have a
+// clear forward path to the edge (over cells already placed), and its body
+// extends backward over currently-empty cells. Removing arrows in reverse
+// placement order is then always a valid solution — and since removing an arrow
+// only frees cells, no play order can ever dead-end.
 
-import { DIR_LIST, STARTING_LIVES } from './constants.js'
-import { idx, isPathClear, countArrows } from './engine.js'
+import { DIRS, DIR_LIST, STARTING_LIVES } from './constants.js'
+import { EMPTY, idx, inBounds, occupiedCells } from './engine.js'
 
 function mulberry32(seed) {
   let a = seed >>> 0
@@ -30,44 +30,81 @@ function shuffle(arr, rng) {
 }
 
 /**
- * Build a solvable board.
+ * Build a solvable board of lengthy arrows.
  * @param {number} rows
  * @param {number} cols
- * @param {{ fill?: number, seed?: number, rng?: () => number }} [opts]
- *   fill — target fraction of cells to occupy (0..1).
- * @returns {{ board: Array<?string>, rows: number, cols: number, arrows: number }}
+ * @param {{ fill?: number, maxLen?: number, seed?: number, rng?: () => number }} [opts]
+ * @returns {{ grid: number[], arrows: object, rows: number, cols: number, count: number }}
  */
-export function generateBoard(rows, cols, opts = {}) {
-  const { fill = 0.8, seed } = opts
+export function generateLevel(rows, cols, opts = {}) {
+  const { fill = 0.82, maxLen = 5, seed } = opts
   const rng = opts.rng || (seed != null ? mulberry32(seed) : Math.random)
 
-  const board = new Array(rows * cols).fill(null)
-  const cells = []
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) cells.push([r, c])
-  }
-  shuffle(cells, rng)
-
+  const grid = new Array(rows * cols).fill(EMPTY)
+  const arrows = {}
   const target = Math.max(1, Math.floor(rows * cols * fill))
-  let placed = 0
 
-  for (const [r, c] of cells) {
-    if (placed >= target) break
-    // Directions whose path to the edge is currently unobstructed.
-    const valid = DIR_LIST.filter((d) => isPathClear(board, r, c, d, rows, cols))
-    if (valid.length === 0) continue
-    board[idx(r, c, cols)] = valid[Math.floor(rng() * valid.length)]
-    placed++
+  const heads = []
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) heads.push([r, c])
+  shuffle(heads, rng)
+
+  let id = 0
+  let occupied = 0
+
+  for (const [r, c] of heads) {
+    if (occupied >= target) break
+    if (grid[idx(r, c, cols)] !== EMPTY) continue // head cell must be empty
+
+    for (const dir of shuffle(DIR_LIST.slice(), rng)) {
+      const [dr, dc] = DIRS[dir]
+
+      // 1) Head's forward path to the edge must be clear.
+      let clear = true
+      let fr = r + dr
+      let fc = c + dc
+      while (inBounds(fr, fc, rows, cols)) {
+        if (grid[idx(fr, fc, cols)] !== EMPTY) {
+          clear = false
+          break
+        }
+        fr += dr
+        fc += dc
+      }
+      if (!clear) continue
+
+      // 2) Body extends backward over empty cells, up to maxLen.
+      let maxAvail = 1
+      let br = r - dr
+      let bc = c - dc
+      while (
+        maxAvail < maxLen &&
+        inBounds(br, bc, rows, cols) &&
+        grid[idx(br, bc, cols)] === EMPTY
+      ) {
+        maxAvail++
+        br -= dr
+        bc -= dc
+      }
+
+      const len = 1 + Math.floor(rng() * maxAvail) // 1..maxAvail
+      const arrow = { id, dir, len, r, c }
+      for (const [cr, cc] of occupiedCells(arrow)) grid[idx(cr, cc, cols)] = id
+      arrows[id] = arrow
+      id++
+      occupied += len
+      break
+    }
   }
 
-  return { board, rows, cols, arrows: countArrows(board) }
+  return { grid, arrows, rows, cols, count: Object.keys(arrows).length }
 }
 
 /** Difficulty knobs that scale with the level number. */
 export function levelConfig(level) {
   const size = Math.min(5 + Math.floor((level - 1) / 2), 12)
-  const fill = Math.min(0.68 + (level - 1) * 0.02, 0.92)
-  return { rows: size, cols: size, fill, lives: STARTING_LIVES }
+  const fill = Math.min(0.72 + (level - 1) * 0.02, 0.92)
+  const maxLen = Math.min(3 + Math.floor((level - 1) / 3), 6)
+  return { rows: size, cols: size, fill, maxLen, lives: STARTING_LIVES }
 }
 
 /** Difficulty label shown in the HUD. */
@@ -81,15 +118,17 @@ export function difficultyLabel(level) {
 /** Create a fresh game state for a given level. */
 export function createGame(level) {
   const cfg = levelConfig(level)
-  const { board, rows, cols, arrows } = generateBoard(cfg.rows, cfg.cols, {
+  const { grid, arrows, rows, cols, count } = generateLevel(cfg.rows, cfg.cols, {
     fill: cfg.fill,
+    maxLen: cfg.maxLen,
   })
   return {
     level,
-    board,
     rows,
     cols,
+    grid,
     arrows,
+    count,
     lives: cfg.lives,
     status: 'playing', // 'playing' | 'won' | 'lost'
   }

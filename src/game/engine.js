@@ -1,80 +1,104 @@
 // Pure game logic for the Arrow Puzzle. No React, no DOM — fully testable.
 //
-// A board is a flat array of length rows*cols. Each entry is either a
-// direction ('U' | 'D' | 'L' | 'R') or null for an empty cell.
+// Each arrow is a straight, multi-cell piece:
+//   { id, dir, len, r, c }   where (r,c) is the HEAD (arrowhead) cell and the
+//   body extends `len` cells backward, opposite `dir`.
+//
+// State:
+//   { level, rows, cols, grid, arrows, count, lives, status }
+//   - grid:   flat array, each cell holds an arrow id or -1 (empty)
+//   - arrows: { [id]: arrow }
+//   - count:  number of arrows remaining
 //
 // Rules:
-//  - Tapping an arrow releases it *if* every cell along its straight path to
-//    the board edge (in the direction it points) is empty.
-//  - If the path is clear, the arrow flies off and is removed.
-//  - If any cell blocks the path, nothing is released and a life is lost.
-//  - Clear every arrow to win; run out of lives to lose.
+//   - Tapping an arrow releases it *if* every cell ahead of its head (in `dir`,
+//     up to the board edge) is empty. The whole piece then flies off.
+//   - If any cell blocks that path, nothing is released and a life is lost.
+//   - Clear every arrow to win; run out of lives to lose.
 
 import { DIRS } from './constants.js'
+
+export const EMPTY = -1
 
 export const idx = (r, c, cols) => r * cols + c
 
 export const inBounds = (r, c, rows, cols) =>
   r >= 0 && r < rows && c >= 0 && c < cols
 
-/**
- * Every cell from the one just ahead of (r,c) to the board edge, in `dir`.
- * @returns {Array<[number, number]>}
- */
-export function forwardCells(r, c, dir, rows, cols) {
+/** All cells the arrow occupies (head first, then back along the body). */
+export function occupiedCells(arrow) {
+  const { dir, len, r, c } = arrow
   const [dr, dc] = DIRS[dir]
   const cells = []
-  let nr = r + dr
-  let nc = c + dc
-  while (inBounds(nr, nc, rows, cols)) {
-    cells.push([nr, nc])
-    nr += dr
-    nc += dc
-  }
+  for (let k = 0; k < len; k++) cells.push([r - dr * k, c - dc * k])
   return cells
 }
 
-/** True when nothing stands between (r,c) and the edge it points toward. */
-export function isPathClear(board, r, c, dir, rows, cols) {
-  for (const [nr, nc] of forwardCells(r, c, dir, rows, cols)) {
-    if (board[idx(nr, nc, cols)] !== null) return false
+/** The bounding box of an arrow in cell units: { minR, minC, spanR, spanC }. */
+export function boundingBox(arrow) {
+  let minR = Infinity
+  let minC = Infinity
+  let maxR = -Infinity
+  let maxC = -Infinity
+  for (const [r, c] of occupiedCells(arrow)) {
+    if (r < minR) minR = r
+    if (r > maxR) maxR = r
+    if (c < minC) minC = c
+    if (c > maxC) maxC = c
+  }
+  return { minR, minC, spanR: maxR - minR + 1, spanC: maxC - minC + 1 }
+}
+
+/** Cells from just ahead of the head to the board edge, in `dir`. */
+export function headForwardCells(arrow, rows, cols) {
+  const { dir, r, c } = arrow
+  const [dr, dc] = DIRS[dir]
+  const out = []
+  let nr = r + dr
+  let nc = c + dc
+  while (inBounds(nr, nc, rows, cols)) {
+    out.push([nr, nc])
+    nr += dr
+    nc += dc
+  }
+  return out
+}
+
+/** True when nothing stands between the arrow's head and the edge it faces. */
+export function isReleasable(grid, arrow, rows, cols) {
+  for (const [nr, nc] of headForwardCells(arrow, rows, cols)) {
+    if (grid[idx(nr, nc, cols)] !== EMPTY) return false
   }
   return true
 }
 
-/** Count arrows still on the board. */
-export function countArrows(board) {
-  let n = 0
-  for (const cell of board) if (cell !== null) n++
-  return n
-}
-
 /**
- * Attempt to release the arrow at (r,c).
+ * Attempt to release the arrow with id `id`.
  *
- * @returns {{ state: object, result: 'released'|'blocked'|'none', dir: ?string }}
- *   `state` is a new game state (or the same reference when result is 'none').
+ * @returns {{ state: object, result: 'released'|'blocked'|'none', arrow: ?object }}
  */
-export function tryRelease(state, r, c) {
-  if (state.status !== 'playing') return { state, result: 'none', dir: null }
+export function tryRelease(state, id) {
+  if (state.status !== 'playing') return { state, result: 'none', arrow: null }
 
-  const i = idx(r, c, state.cols)
-  const dir = state.board[i]
-  if (!dir) return { state, result: 'none', dir: null }
+  const arrow = state.arrows[id]
+  if (!arrow) return { state, result: 'none', arrow: null }
 
-  if (isPathClear(state.board, r, c, dir, state.rows, state.cols)) {
-    const board = state.board.slice()
-    board[i] = null
-    const arrows = state.arrows - 1
+  if (isReleasable(state.grid, arrow, state.rows, state.cols)) {
+    const grid = state.grid.slice()
+    for (const [r, c] of occupiedCells(arrow)) grid[idx(r, c, state.cols)] = EMPTY
+    const arrows = { ...state.arrows }
+    delete arrows[id]
+    const count = state.count - 1
     return {
       state: {
         ...state,
-        board,
+        grid,
         arrows,
-        status: arrows === 0 ? 'won' : 'playing',
+        count,
+        status: count === 0 ? 'won' : 'playing',
       },
       result: 'released',
-      dir,
+      arrow,
     }
   }
 
@@ -86,29 +110,28 @@ export function tryRelease(state, r, c) {
       status: lives <= 0 ? 'lost' : 'playing',
     },
     result: 'blocked',
-    dir,
+    arrow,
   }
 }
 
 /**
- * Greedily solve a board by repeatedly releasing any arrow whose path is clear.
- * Used by tests to prove a generated board is winnable. Returns true if the
- * board can be fully cleared. (Because removing an arrow only ever *clears*
- * other paths, a greedy order can never deadlock on a solvable board.)
+ * Greedily solve by repeatedly releasing any arrow whose head path is clear.
+ * Returns true if the board can be fully cleared. Because removing an arrow
+ * only ever *frees* cells, a greedy order can never deadlock a solvable board.
  */
-export function isSolvable(board, rows, cols) {
-  const work = board.slice()
-  let remaining = countArrows(work)
+export function isSolvable(gridIn, arrowsIn, rows, cols) {
+  const grid = gridIn.slice()
+  const arrows = { ...arrowsIn }
+  let remaining = Object.keys(arrows).length
   while (remaining > 0) {
     let progressed = false
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const dir = work[idx(r, c, cols)]
-        if (dir && isPathClear(work, r, c, dir, rows, cols)) {
-          work[idx(r, c, cols)] = null
-          remaining--
-          progressed = true
-        }
+    for (const id of Object.keys(arrows)) {
+      const arrow = arrows[id]
+      if (isReleasable(grid, arrow, rows, cols)) {
+        for (const [r, c] of occupiedCells(arrow)) grid[idx(r, c, cols)] = EMPTY
+        delete arrows[id]
+        remaining--
+        progressed = true
       }
     }
     if (!progressed) return false

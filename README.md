@@ -4,11 +4,13 @@ A web-based Arrow Puzzle game, built with React and Vite.
 
 ## How to play
 
-The board is packed with arrows, each pointing up, down, left, or right.
-Tap an arrow to fly it off the board **in the direction it points** — but only
-if every cell along its straight path to the edge is empty. If another arrow
-blocks the path, nothing is released and you lose a heart. Lose all three
-hearts and the round is over. Clear every arrow to advance to the next level.
+The board is packed with **lengthy arrows** — each is a straight piece one or
+more cells long with an arrowhead at its leading end, pointing up, down, left,
+or right. Tap an arrow to fly the whole piece off the board **in the direction
+it points** — but only if every cell ahead of its arrowhead, up to the edge, is
+empty. If another arrow blocks that path, nothing is released and you lose a
+heart. Lose all three hearts and the round is over. Clear every arrow to
+advance to the next level.
 
 Every generated level is **guaranteed solvable** (and can never dead-end), and
 your progress is saved locally so you resume where you left off.
@@ -36,15 +38,16 @@ src/
   App.css             # game styles
   index.css           # global styles
   game/
-    constants.js      # directions, glyphs
-    engine.js         # pure rules: path checks, release logic, win/lose
+    constants.js      # directions
+    engine.js         # pure rules: multi-cell arrows, release logic, win/lose
     generator.js      # guaranteed-solvable level generator + difficulty scaling
     *.test.js         # unit tests (zero-dependency, node:test)
   hooks/
     useGame.js        # React binding + localStorage progress
   components/
     HUD.jsx           # level, arrow count, hearts
-    Board.jsx         # grid + fly-off / blocked rendering
+    Arrow.jsx         # one lengthy arrow (rounded shaft + head), drawn as SVG
+    Board.jsx         # positions arrows + fly-off / blocked rendering
     Overlay.jsx       # win / lose modal
 public/               # static assets
 vite.config.js        # Vite configuration

@@ -11,28 +11,25 @@ const SHAKE_MS = 380
 function App() {
   const { game, release, restart, nextLevel } = useGame()
 
-  const [flying, setFlying] = useState([]) // [{ id, r, c, dir }]
-  const [blocked, setBlocked] = useState(null) // { r, c, id }
-  const flyId = useRef(0)
+  const [flying, setFlying] = useState([]) // [{ key, arrow }]
+  const [blocked, setBlocked] = useState(null) // arrow id
+  const flyKey = useRef(0)
+  const shakeToken = useRef(0)
 
-  const handleCell = useCallback(
-    (r, c) => {
-      const { result, dir } = release(r, c)
+  const handleArrow = useCallback(
+    (id) => {
+      const { result, arrow } = release(id)
 
       if (result === 'released') {
-        const id = ++flyId.current
-        setFlying((f) => [...f, { id, r, c, dir }])
-        setTimeout(
-          () => setFlying((f) => f.filter((a) => a.id !== id)),
-          FLY_MS,
-        )
+        const key = ++flyKey.current
+        setFlying((f) => [...f, { key, arrow }])
+        setTimeout(() => setFlying((f) => f.filter((a) => a.key !== key)), FLY_MS)
       } else if (result === 'blocked') {
-        const id = ++flyId.current
-        setBlocked({ r, c, id })
-        setTimeout(
-          () => setBlocked((b) => (b && b.id === id ? null : b)),
-          SHAKE_MS,
-        )
+        const token = ++shakeToken.current
+        setBlocked(id)
+        setTimeout(() => {
+          if (shakeToken.current === token) setBlocked(null)
+        }, SHAKE_MS)
       }
     },
     [release],
@@ -43,7 +40,7 @@ function App() {
       <div className="app__frame">
         <HUD
           level={game.level}
-          arrows={game.arrows}
+          arrows={game.count}
           lives={game.lives}
           onRestart={restart}
         />
@@ -53,7 +50,7 @@ function App() {
             game={game}
             flying={flying}
             blocked={blocked}
-            onCell={handleCell}
+            onArrow={handleArrow}
           />
           <Overlay
             status={game.status}
