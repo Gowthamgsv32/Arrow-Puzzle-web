@@ -1,76 +1,64 @@
-import { DIRS } from '../game/constants.js'
-import { boundingBox } from '../game/engine.js'
+// One bent arrow line, drawn inside the board's SVG (cell units: 1 = one cell).
+// Cell (r,c) centre is (c + 0.5, r + 0.5). A wide transparent "hit" path makes
+// the thin line easy to tap.
 
-// Renders one lengthy arrow (rounded shaft + arrowhead) positioned over the
-// board. Coordinates are in *cell units*; the SVG viewBox matches the piece's
-// bounding box so it scales uniformly with the square grid.
-export default function Arrow({ arrow, rows, cols, blocked, onClick, aria }) {
-  const { minR, minC, spanR, spanC } = boundingBox(arrow)
-  const { dir } = arrow
-  const [dr, dc] = DIRS[dir]
+function pathD(verts) {
+  return verts.map(([r, c], i) => `${i ? 'L' : 'M'}${c + 0.5},${r + 0.5}`).join(' ')
+}
 
-  // Head cell centre, expressed inside the bounding box (unit = 1 cell).
-  const headX = arrow.c - minC + 0.5
-  const headY = arrow.r - minR + 0.5
-
-  // Shaft runs from the back of the tail cell up to the arrowhead's neck, so
-  // even a length-1 arrow shows a proper shaft (no stray round nub).
-  const back = arrow.len - 1 + 0.32
-  const tailX = headX - dc * back
-  const tailY = headY - dr * back
-  const neckX = headX - dc * 0.1
-  const neckY = headY - dr * 0.1
-
-  // Arrowhead: an isosceles triangle around the tip, base perpendicular to dir.
-  const tipX = headX + dc * 0.4
-  const tipY = headY + dr * 0.4
-  const px = -dr // perpendicular vector (rotate dir 90°)
-  const py = dc
-  const half = 0.4
-  const baseX = headX - dc * 0.12
-  const baseY = headY - dr * 0.12
-  const p1 = `${tipX},${tipY}`
-  const p2 = `${baseX + px * half},${baseY + py * half}`
-  const p3 = `${baseX - px * half},${baseY - py * half}`
-
-  const stroke = 0.44
-
+export default function ArrowPath({ arrow, blocked, onClick, aria }) {
+  const d = pathD(arrow.verts)
   return (
-    <button
-      type="button"
+    <g
       className={`arrow${blocked ? ' arrow--blocked' : ''}`}
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
       aria-label={aria}
       data-id={arrow.id}
       data-dir={arrow.dir}
-      data-len={arrow.len}
-      data-r={arrow.r}
-      data-c={arrow.c}
-      style={{
-        left: `${(minC / cols) * 100}%`,
-        top: `${(minR / rows) * 100}%`,
-        width: `${(spanC / cols) * 100}%`,
-        height: `${(spanR / rows) * 100}%`,
-      }}
+      data-head={`${arrow.head[0]},${arrow.head[1]}`}
+      data-cells={arrow.cells.map((x) => x.join('-')).join(' ')}
     >
-      <svg
-        className="arrow__svg"
-        viewBox={`0 0 ${spanC} ${spanR}`}
-        preserveAspectRatio="xMidYMid meet"
-        aria-hidden="true"
+      {onClick && (
+        <path
+          className="arrow__hit"
+          d={d}
+          fill="none"
+          stroke="transparent"
+          strokeWidth="0.7"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      )}
+      <path
+        className="arrow__ink"
+        d={d}
+        fill="none"
+        strokeWidth="0.12"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        markerEnd="url(#arrowhead)"
+      />
+    </g>
+  )
+}
+
+// Shared arrowhead marker (place once per <svg>). Uses context-stroke so the
+// head always matches its line's colour (navy / hover / red).
+export function ArrowDefs() {
+  return (
+    <defs>
+      <marker
+        id="arrowhead"
+        markerUnits="userSpaceOnUse"
+        markerWidth="0.7"
+        markerHeight="0.7"
+        refX="0.12"
+        refY="0.3"
+        orient="auto"
       >
-        <g className="arrow__ink">
-          <line
-            x1={tailX}
-            y1={tailY}
-            x2={neckX}
-            y2={neckY}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-          />
-          <polygon points={`${p1} ${p2} ${p3}`} />
-        </g>
-      </svg>
-    </button>
+        <path d="M0,0 L0.58,0.3 L0,0.6 Z" fill="context-stroke" />
+      </marker>
+    </defs>
   )
 }

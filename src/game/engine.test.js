@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import {
   EMPTY,
   idx,
-  occupiedCells,
   boundingBox,
   headForwardCells,
   isReleasable,
@@ -11,13 +10,13 @@ import {
   isSolvable,
 } from './engine.js'
 
-// Build a grid from a list of arrows on a rows x cols board.
+// Build a state from explicit arrows on a rows x cols board.
 function build(rows, cols, arrowList) {
   const grid = new Array(rows * cols).fill(EMPTY)
   const arrows = {}
   for (const a of arrowList) {
     arrows[a.id] = a
-    for (const [r, c] of occupiedCells(a)) grid[idx(r, c, cols)] = a.id
+    for (const [r, c] of a.cells) grid[idx(r, c, cols)] = a.id
   }
   return {
     rows,
@@ -31,55 +30,74 @@ function build(rows, cols, arrowList) {
   }
 }
 
-test('occupiedCells lays the body out behind the head', () => {
-  // Head at (2,3) pointing Right, length 3 -> cells (2,3),(2,2),(2,1)
-  assert.deepEqual(occupiedCells({ id: 0, dir: 'R', len: 3, r: 2, c: 3 }), [
-    [2, 3],
-    [2, 2],
+// A bent line: (2,1)->(2,3) then up to (0,3). Head at (0,3) pointing U.
+const bent = {
+  id: 0,
+  dir: 'U',
+  head: [0, 3],
+  cells: [
     [2, 1],
-  ])
-  // Head at (0,1) pointing Down, length 2 -> (0,1),(-1,1) back is up
-  assert.deepEqual(occupiedCells({ id: 0, dir: 'D', len: 2, r: 1, c: 1 }), [
-    [1, 1],
-    [0, 1],
-  ])
-})
+    [2, 2],
+    [2, 3],
+    [1, 3],
+    [0, 3],
+  ],
+  verts: [
+    [2, 1],
+    [2, 3],
+    [0, 3],
+  ],
+}
 
-test('boundingBox spans the whole piece', () => {
-  const box = boundingBox({ id: 0, dir: 'R', len: 3, r: 2, c: 3 })
-  assert.deepEqual(box, { minR: 2, minC: 1, spanR: 1, spanC: 3 })
+test('boundingBox spans the whole bent line', () => {
+  assert.deepEqual(boundingBox(bent), { minR: 0, minC: 1, spanR: 3, spanC: 3 })
 })
 
 test('headForwardCells walks from the head to the edge', () => {
-  // Head (1,1) Right on 3x3 -> (1,2)
-  assert.deepEqual(headForwardCells({ dir: 'R', r: 1, c: 1 }, 3, 3), [[1, 2]])
+  // Head (0,3) pointing U is already on the top edge -> no cells ahead.
+  assert.deepEqual(headForwardCells(bent, 5, 5), [])
+  // Head (2,3) pointing R on 5x5 -> (2,4)
+  assert.deepEqual(headForwardCells({ dir: 'R', head: [2, 3] }, 5, 5), [[2, 4]])
 })
 
 test('isReleasable checks only the cells ahead of the head', () => {
-  // 5-wide row. Arrow A: head (0,2) Right, len 2 -> occupies (0,2),(0,1).
-  // Arrow B: head (0,4) Right, len 1 -> occupies (0,4). Ahead of A's head is
-  // (0,3),(0,4); (0,4) is taken -> A blocked. B has clear edge -> releasable.
-  const A = { id: 0, dir: 'R', len: 2, r: 0, c: 2 }
-  const B = { id: 1, dir: 'R', len: 1, r: 0, c: 4 }
-  const s = build(1, 5, [A, B])
-  assert.equal(isReleasable(s.grid, A, 1, 5), false)
-  assert.equal(isReleasable(s.grid, B, 1, 5), true)
+  const s = build(5, 5, [bent])
+  assert.equal(isReleasable(s.grid, bent, 5, 5), true) // head on edge -> clear
+
+  const blocker = { id: 1, dir: 'D', head: [1, 3], cells: [[1, 3]], verts: [[1, 3]] }
+  // Put a one-cell line right above a rightward head to block it.
+  const facing = {
+    id: 2,
+    dir: 'R',
+    head: [4, 2],
+    cells: [
+      [4, 1],
+      [4, 2],
+    ],
+    verts: [
+      [4, 1],
+      [4, 2],
+    ],
+  }
+  const wall = { id: 3, dir: 'U', head: [4, 4], cells: [[4, 4]], verts: [[4, 4]] }
+  const s2 = build(5, 5, [facing, wall, blocker])
+  // facing head (4,2) R -> ahead (4,3),(4,4); (4,4) is wall -> blocked
+  assert.equal(isReleasable(s2.grid, facing, 5, 5), false)
 })
 
-test('releasing an arrow clears all its cells and can win', () => {
-  const A = { id: 0, dir: 'R', len: 3, r: 0, c: 2 } // (0,2)(0,1)(0,0)
-  const s = build(1, 4, [A]) // ahead of head is (0,3) empty -> releasable
+test('releasing a line clears all its cells and can win', () => {
+  const s = build(5, 5, [bent])
   const { state, result, arrow } = tryRelease(s, 0)
   assert.equal(result, 'released')
   assert.equal(arrow.id, 0)
-  for (const [r, c] of occupiedCells(A)) assert.equal(state.grid[idx(r, c, 4)], EMPTY)
+  for (const [r, c] of bent.cells) assert.equal(state.grid[idx(r, c, 5)], EMPTY)
   assert.equal(state.count, 0)
   assert.equal(state.status, 'won')
 })
 
 test('a blocked release costs a life and removes nothing', () => {
-  const A = { id: 0, dir: 'R', len: 1, r: 0, c: 0 }
-  const B = { id: 1, dir: 'L', len: 1, r: 0, c: 2 }
+  const A = { id: 0, dir: 'R', head: [0, 0], cells: [[0, 0]], verts: [[0, 0]] }
+  const B = { id: 1, dir: 'L', head: [0, 2], cells: [[0, 2]], verts: [[0, 2]] }
   const s = build(1, 3, [A, B]) // A ahead: (0,1),(0,2); (0,2) taken -> blocked
   s.lives = 2
   const { state, result } = tryRelease(s, 0)
@@ -90,8 +108,8 @@ test('a blocked release costs a life and removes nothing', () => {
 })
 
 test('losing the final life ends the game', () => {
-  const A = { id: 0, dir: 'R', len: 1, r: 0, c: 0 }
-  const B = { id: 1, dir: 'L', len: 1, r: 0, c: 2 }
+  const A = { id: 0, dir: 'R', head: [0, 0], cells: [[0, 0]], verts: [[0, 0]] }
+  const B = { id: 1, dir: 'L', head: [0, 2], cells: [[0, 2]], verts: [[0, 2]] }
   const s = build(1, 3, [A, B])
   s.lives = 1
   const { state, result } = tryRelease(s, 0)
@@ -101,24 +119,22 @@ test('losing the final life ends the game', () => {
 })
 
 test('no interaction once the game is over', () => {
-  const A = { id: 0, dir: 'R', len: 1, r: 0, c: 0 }
+  const A = { id: 0, dir: 'R', head: [0, 0], cells: [[0, 0]], verts: [[0, 0]] }
   const s = build(1, 1, [A])
   s.status = 'won'
   assert.equal(tryRelease(s, 0).result, 'none')
 })
 
 test('isSolvable distinguishes jammed from clearable boards', () => {
-  // R _ L pointing at each other across an empty middle -> deadlock.
   const jammed = build(1, 3, [
-    { id: 0, dir: 'R', len: 1, r: 0, c: 0 },
-    { id: 1, dir: 'L', len: 1, r: 0, c: 2 },
+    { id: 0, dir: 'R', head: [0, 0], cells: [[0, 0]], verts: [[0, 0]] },
+    { id: 1, dir: 'L', head: [0, 2], cells: [[0, 2]], verts: [[0, 2]] },
   ])
   assert.equal(isSolvable(jammed.grid, jammed.arrows, 1, 3), false)
 
-  // L _ R pointing outward -> solvable.
   const easy = build(1, 3, [
-    { id: 0, dir: 'L', len: 1, r: 0, c: 0 },
-    { id: 1, dir: 'R', len: 1, r: 0, c: 2 },
+    { id: 0, dir: 'L', head: [0, 0], cells: [[0, 0]], verts: [[0, 0]] },
+    { id: 1, dir: 'R', head: [0, 2], cells: [[0, 2]], verts: [[0, 2]] },
   ])
   assert.equal(isSolvable(easy.grid, easy.arrows, 1, 3), true)
 })

@@ -1,9 +1,10 @@
-import Arrow from './Arrow.jsx'
+import ArrowPath, { ArrowDefs } from './Arrow.jsx'
 
 const DIR_WORD = { U: 'up', D: 'down', L: 'left', R: 'right' }
 
 /**
- * Renders the board: all live arrows plus any that are currently flying off.
+ * Renders the board: all live bent-line arrows in one SVG, plus any that are
+ * currently flying off in their own animated overlays.
  *
  * @param {object}  props
  * @param {object}  props.game     current game state
@@ -15,28 +16,35 @@ export default function Board({ game, flying, blocked, onArrow }) {
   const { arrows, rows, cols } = game
 
   return (
-    <div
-      className="board"
-      style={{ '--cols': cols, '--rows': rows }}
-      role="group"
-      aria-label="Arrow puzzle board"
-    >
-      {Object.values(arrows).map((arrow) => (
-        <Arrow
-          key={arrow.id}
-          arrow={arrow}
-          rows={rows}
-          cols={cols}
-          blocked={blocked === arrow.id}
-          onClick={() => onArrow(arrow.id)}
-          aria={`Arrow pointing ${DIR_WORD[arrow.dir]}, length ${arrow.len}`}
-        />
-      ))}
+    <div className="board" style={{ '--cols': cols, '--rows': rows }}>
+      <svg
+        className="board__svg"
+        viewBox={`0 0 ${cols} ${rows}`}
+        role="group"
+        aria-label="Arrow puzzle board"
+      >
+        <ArrowDefs />
+        {Object.values(arrows).map((arrow) => (
+          <ArrowPath
+            key={arrow.id}
+            arrow={arrow}
+            blocked={blocked === arrow.id}
+            onClick={() => onArrow(arrow.id)}
+            aria={`Bent arrow pointing ${DIR_WORD[arrow.dir]}, length ${arrow.cells.length}`}
+          />
+        ))}
+      </svg>
 
       {flying.map(({ key, arrow }) => (
-        <span key={key} className={`fly fly--${arrow.dir}`} aria-hidden="true">
-          <Arrow arrow={arrow} rows={rows} cols={cols} onClick={() => {}} />
-        </span>
+        <svg
+          key={key}
+          className={`fly fly--${arrow.dir}`}
+          viewBox={`0 0 ${cols} ${rows}`}
+          aria-hidden="true"
+        >
+          <ArrowDefs />
+          <ArrowPath arrow={arrow} />
+        </svg>
       ))}
     </div>
   )

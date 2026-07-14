@@ -4,16 +4,16 @@ A web-based Arrow Puzzle game, built with React and Vite.
 
 ## How to play
 
-The board is packed with **lengthy arrows** — each is a straight piece one or
-more cells long with an arrowhead at its leading end, pointing up, down, left,
-or right. Tap an arrow to fly the whole piece off the board **in the direction
-it points** — but only if every cell ahead of its arrowhead, up to the edge, is
-empty. If another arrow blocks that path, nothing is released and you lose a
-heart. Lose all three hearts and the round is over. Clear every arrow to
-advance to the next level.
+The board is packed with **thin bent arrow lines** — each is a self-avoiding
+polyline that turns 90° at its corners, with an arrowhead at its head end. Tap
+a line to slide it off the board **in the direction its arrowhead points** —
+but only if the straight path from the head to the edge is empty. If another
+line blocks that path, nothing is released and you lose a heart. Lose all three
+hearts and the round is over. Clear every line to advance to the next level.
 
-Every generated level is **guaranteed solvable** (and can never dead-end), and
-your progress is saved locally so you resume where you left off.
+Lines are generated **randomly and never overlap**, and every level is
+**guaranteed solvable** (and can never dead-end). Your progress is saved
+locally so you resume where you left off.
 
 ## Getting started
 
@@ -39,15 +39,15 @@ src/
   index.css           # global styles
   game/
     constants.js      # directions
-    engine.js         # pure rules: multi-cell arrows, release logic, win/lose
-    generator.js      # guaranteed-solvable level generator + difficulty scaling
+    engine.js         # pure rules: bent lines, release logic, win/lose
+    generator.js      # random non-overlapping solvable line generator
     *.test.js         # unit tests (zero-dependency, node:test)
   hooks/
     useGame.js        # React binding + localStorage progress
   components/
-    HUD.jsx           # level, arrow count, hearts
-    Arrow.jsx         # one lengthy arrow (rounded shaft + head), drawn as SVG
-    Board.jsx         # positions arrows + fly-off / blocked rendering
+    HUD.jsx           # level, line count, hearts
+    Arrow.jsx         # one thin bent line + arrowhead, drawn as an SVG path
+    Board.jsx         # board SVG + fly-off / blocked rendering
     Overlay.jsx       # win / lose modal
 public/               # static assets
 vite.config.js        # Vite configuration
@@ -58,11 +58,12 @@ eslint.config.js      # ESLint configuration
 
 - **`game/engine.js`** is pure and framework-free — all rules live here and are
   covered by unit tests, so the logic is verifiable without a browser.
-- **Solvability guarantee:** the generator builds each board by placing arrows
-  one at a time, only where the forward path is currently clear. Removing them
-  in reverse placement order is therefore always a valid solution, and because
-  removing an arrow only ever *clears* other paths, no play order can dead-end.
-  A test proves this across 200 random boards.
+- **Solvability guarantee:** the generator grows each bent line over empty
+  cells and only keeps it if its head's straight path to the edge is currently
+  clear (of other lines *and* its own body). Removing the lines in reverse
+  placement order is therefore always a valid solution, and because removing a
+  line only ever *frees* cells, no play order can dead-end. A test proves this
+  across 200 random boards.
 
 ## Deployment (GitHub Pages)
 
