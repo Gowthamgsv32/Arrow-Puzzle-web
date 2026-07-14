@@ -5,12 +5,15 @@ A web-based Arrow Puzzle game, built with React and Vite.
 ## How to play
 
 Each level draws a **shape** — heart, ball, star, apple, diamond — out of many
-**little snakes**. Every snake is a self-avoiding bent line that turns 90° at
-its corners, with a snake head at its front. Tap a snake to **send it
-slithering off the board**, head-first along its own body — but only if the
-straight path from its head to the edge is empty. If another snake blocks that
-path, it can't move and you lose a heart. Lose all three hearts and the round is
-over. Clear every snake to advance to the next level (and the next shape).
+**bent pieces**. Every piece is a self-avoiding bent line that turns 90° at its
+corners, with a head at its front. Tap a piece to **send it off the board**,
+head-first along its own path — but only if the straight path from its head to
+the edge is empty. If another piece blocks that path, it can't move and you lose
+a heart. Lose all three hearts and the round is over. Clear every piece to
+advance to the next level (and the next shape).
+
+**Pick your style:** a toggle in the header switches the pieces between
+**arrows** (default) and **snakes** — your choice is saved locally.
 
 The lines **completely fill the shape with no interior gaps** (dozens of arrows
 per level), never overlap, and every level is **guaranteed solvable** (and can

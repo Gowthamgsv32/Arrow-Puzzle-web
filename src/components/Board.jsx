@@ -12,7 +12,7 @@ const DIR_WORD = { U: 'up', D: 'down', L: 'left', R: 'right' }
  * @param {?number} props.blocked  id of the arrow currently shaking, or null
  * @param {(id:number)=>void} props.onArrow
  */
-export default function Board({ game, flying, blocked, onArrow }) {
+export default function Board({ game, flying, blocked, onArrow, skin }) {
   const { arrows, rows, cols } = game
 
   return (
@@ -28,9 +28,10 @@ export default function Board({ game, flying, blocked, onArrow }) {
           <ArrowPath
             key={arrow.id}
             arrow={arrow}
+            skin={skin}
             blocked={blocked === arrow.id}
             onClick={() => onArrow(arrow.id)}
-            aria={`Snake facing ${DIR_WORD[arrow.dir]}, length ${arrow.cells.length}`}
+            aria={`${skin === 'snake' ? 'Snake' : 'Arrow'} facing ${DIR_WORD[arrow.dir]}, length ${arrow.cells.length}`}
           />
         ))}
         {flying.map(({ key, train }) => (

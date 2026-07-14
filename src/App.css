@@ -7,11 +7,19 @@
   --accent: #6c8bff;
   --danger: #ff5d6c;
 
-  /* Puzzle board — light "paper" surface with green snakes. */
+  /* Puzzle board — light "paper" surface. Default skin: navy arrows. */
   --board-bg: #ffffff;
+  --arrow-ink: #1f2a5e;
+  --arrow-hover: #33409a;
+  --piece-w: 0.1;
+  --radius: 16px;
+}
+
+/* Snake skin: green, slightly chunkier bodies. */
+[data-skin='snake'] {
   --arrow-ink: #4fa544;
   --arrow-hover: #3a8b34;
-  --radius: 16px;
+  --piece-w: 0.13;
 }
 
 .app {
@@ -102,6 +110,29 @@
   color: var(--accent);
 }
 
+.skin {
+  display: inline-flex;
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.skin__opt {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.skin__opt--on {
+  background: var(--accent);
+  color: #fff;
+}
+
 .hud__hearts {
   display: inline-flex;
   gap: 0.25rem;
@@ -146,6 +177,7 @@
 }
 .arrow__ink {
   stroke: var(--arrow-ink);
+  stroke-width: var(--piece-w);
   pointer-events: none;
   transition: stroke 0.12s;
 }
@@ -185,7 +217,7 @@
 .train {
   fill: none;
   stroke: var(--arrow-ink);
-  stroke-width: 0.13;
+  stroke-width: var(--piece-w);
   stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;

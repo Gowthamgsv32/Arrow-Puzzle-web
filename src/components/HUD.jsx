@@ -17,7 +17,28 @@ function Hearts({ lives }) {
   )
 }
 
-export default function HUD({ level, arrows, lives, shape, onRestart }) {
+function SkinToggle({ skin, onSkinChange }) {
+  return (
+    <div className="skin" role="group" aria-label="Piece style">
+      <button
+        className={`skin__opt${skin === 'arrow' ? ' skin__opt--on' : ''}`}
+        onClick={() => onSkinChange('arrow')}
+        aria-pressed={skin === 'arrow'}
+      >
+        ➤ Arrow
+      </button>
+      <button
+        className={`skin__opt${skin === 'snake' ? ' skin__opt--on' : ''}`}
+        onClick={() => onSkinChange('snake')}
+        aria-pressed={skin === 'snake'}
+      >
+        🐍 Snake
+      </button>
+    </div>
+  )
+}
+
+export default function HUD({ level, arrows, lives, shape, skin, onSkinChange, onRestart }) {
   return (
     <header className="hud">
       <div className="hud__top">
@@ -34,9 +55,10 @@ export default function HUD({ level, arrows, lives, shape, onRestart }) {
       </div>
 
       <div className="hud__stats">
-        <span className="hud__arrows" title="Arrows left">
-          <span aria-hidden="true">➤</span> {arrows}
+        <span className="hud__arrows" title="Pieces left">
+          <span aria-hidden="true">{skin === 'snake' ? '🐍' : '➤'}</span> {arrows}
         </span>
+        <SkinToggle skin={skin} onSkinChange={onSkinChange} />
         <Hearts lives={lives} />
       </div>
     </header>

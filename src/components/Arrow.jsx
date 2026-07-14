@@ -4,8 +4,9 @@ import { arrowD } from '../game/train.js'
 // Cell (r,c) centre is (c + 0.5, r + 0.5). A wide transparent "hit" path makes
 // the thin line easy to tap.
 
-export default function ArrowPath({ arrow, blocked, onClick, aria }) {
+export default function ArrowPath({ arrow, blocked, onClick, aria, skin = 'arrow' }) {
   const d = arrowD(arrow)
+  const head = skin === 'snake' ? 'url(#snakehead)' : 'url(#arrowhead)'
   return (
     <g
       className={`arrow${blocked ? ' arrow--blocked' : ''}`}
@@ -32,10 +33,9 @@ export default function ArrowPath({ arrow, blocked, onClick, aria }) {
         className="arrow__ink"
         d={d}
         fill="none"
-        strokeWidth="0.13"
         strokeLinecap="round"
         strokeLinejoin="round"
-        markerEnd="url(#snakehead)"
+        markerEnd={head}
       />
     </g>
   )
@@ -55,11 +55,23 @@ export function TrainPath({ train }) {
   )
 }
 
-// Shared snake-head marker (place once per <svg>). Sits at the line's head and
-// rotates to face the way the snake points, with eyes and a forked tongue.
+// Shared head markers (place once per <svg>): a plain arrowhead and a snake
+// head. ArrowPath references one via marker-end depending on the active skin.
 export function ArrowDefs() {
   return (
     <defs>
+      <marker
+        id="arrowhead"
+        markerUnits="userSpaceOnUse"
+        markerWidth="0.55"
+        markerHeight="0.55"
+        refX="0.1"
+        refY="0.25"
+        orient="auto"
+      >
+        <path d="M0,0 L0.5,0.25 L0,0.5 Z" fill="context-stroke" />
+      </marker>
+
       <marker
         id="snakehead"
         markerUnits="userSpaceOnUse"
