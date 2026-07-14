@@ -2,6 +2,17 @@
 
 A web-based Arrow Puzzle game, built with React and Vite.
 
+## How to play
+
+The board is packed with arrows, each pointing up, down, left, or right.
+Tap an arrow to fly it off the board **in the direction it points** — but only
+if every cell along its straight path to the edge is empty. If another arrow
+blocks the path, nothing is released and you lose a heart. Lose all three
+hearts and the round is over. Clear every arrow to advance to the next level.
+
+Every generated level is **guaranteed solvable** (and can never dead-end), and
+your progress is saved locally so you resume where you left off.
+
 ## Getting started
 
 ```bash
@@ -10,6 +21,7 @@ npm run dev      # start the dev server
 npm run build    # build for production
 npm run preview  # preview the production build
 npm run lint     # run ESLint
+npm test         # run the engine + generator unit tests (node:test)
 ```
 
 The dev server runs at `http://localhost:5173` by default.
@@ -17,16 +29,37 @@ The dev server runs at `http://localhost:5173` by default.
 ## Project structure
 
 ```
-index.html          # app entry HTML
+index.html            # app entry HTML
 src/
-  main.jsx          # React entry point
-  App.jsx           # root component
-  App.css           # component styles
-  index.css         # global styles
-public/             # static assets
-vite.config.js      # Vite configuration
-eslint.config.js    # ESLint configuration
+  main.jsx            # React entry point
+  App.jsx             # root component: state + animation orchestration
+  App.css             # game styles
+  index.css           # global styles
+  game/
+    constants.js      # directions, glyphs
+    engine.js         # pure rules: path checks, release logic, win/lose
+    generator.js      # guaranteed-solvable level generator + difficulty scaling
+    *.test.js         # unit tests (zero-dependency, node:test)
+  hooks/
+    useGame.js        # React binding + localStorage progress
+  components/
+    HUD.jsx           # level, arrow count, hearts
+    Board.jsx         # grid + fly-off / blocked rendering
+    Overlay.jsx       # win / lose modal
+public/               # static assets
+vite.config.js        # Vite configuration
+eslint.config.js      # ESLint configuration
 ```
+
+## Architecture notes
+
+- **`game/engine.js`** is pure and framework-free — all rules live here and are
+  covered by unit tests, so the logic is verifiable without a browser.
+- **Solvability guarantee:** the generator builds each board by placing arrows
+  one at a time, only where the forward path is currently clear. Removing them
+  in reverse placement order is therefore always a valid solution, and because
+  removing an arrow only ever *clears* other paths, no play order can dead-end.
+  A test proves this across 200 random boards.
 
 ## Deployment (GitHub Pages)
 
