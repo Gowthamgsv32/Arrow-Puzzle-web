@@ -52,9 +52,18 @@ def test_read_defaults_to_most_recent_tab(chrome):
 
 
 def test_run_command_captures_output_and_exit_code(tmp_path):
-    chain = "; " if sys.platform == "win32" and "5.1" in system.shell_name() else " && "
-    out = system.run_command(f"echo hello{chain}exit 3", str(tmp_path))
+    # A failing program's real exit code must come through, also from PowerShell.
+    call = "& " if sys.platform == "win32" else ""
+    code = "print('hello'); raise SystemExit(3)"
+    out = system.run_command(f"{call}'{sys.executable}' -c \"{code}\"", str(tmp_path))
     assert "exit code 3" in out and "hello" in out
+
+
+def test_run_command_success_and_ansi_stripped(tmp_path):
+    call = "& " if sys.platform == "win32" else ""
+    code = "print(chr(27) + '[31mred' + chr(27) + '[0m')"
+    out = system.run_command(f"{call}'{sys.executable}' -c \"{code}\"", str(tmp_path))
+    assert out.startswith("exit code 0") and "red" in out and "\x1b" not in out
 
 
 def test_run_command_bad_cwd():

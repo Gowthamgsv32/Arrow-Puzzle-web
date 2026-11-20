@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 MAX_OUTPUT = 20_000
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
 def default_workspace() -> Path:
@@ -32,8 +34,16 @@ def run_command(command: str, cwd: str | None, timeout: int = 120) -> str:
     workdir = Path(cwd).expanduser() if cwd else default_workspace()
     if not workdir.is_dir():
         return f"Error: directory not found: {workdir}"
+    env = {**os.environ, "NO_COLOR": "1", "TERM": "dumb"}
     if sys.platform == "win32":
-        args = [_windows_shell(), "-NoProfile", "-NonInteractive", "-Command", command]
+        # Pass a failing program's real exit code through (PowerShell otherwise reports 1 or 0).
+        script = (
+            "if ($PSStyle) { $PSStyle.OutputRendering = 'PlainText' }\n"  # PS 7 only
+            f"{command}\n"
+            "if (-not $?) { if ($LASTEXITCODE) { exit $LASTEXITCODE } else { exit 1 } }\n"
+            "if ($LASTEXITCODE) { exit $LASTEXITCODE }"
+        )
+        args = [_windows_shell(), "-NoProfile", "-NonInteractive", "-Command", script]
         flags = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
         shell = False
     else:
@@ -42,12 +52,14 @@ def run_command(command: str, cwd: str | None, timeout: int = 120) -> str:
         proc = subprocess.run(
             args, check=False, cwd=workdir, shell=shell, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=max(1, min(timeout, 1800)), creationflags=flags,
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL, env=env,
         )
     except subprocess.TimeoutExpired as exc:
         out = (exc.stdout or "") + (exc.stderr or "")
         return f"Timed out after {timeout}s.\n{_clip(str(out))}"
-    out = proc.stdout + (("\n[stderr]\n" + proc.stderr) if proc.stderr.strip() else "")
+    out = _ANSI.sub("", proc.stdout)
+    err = _ANSI.sub("", proc.stderr)
+    out += ("\n[stderr]\n" + err) if err.strip() else ""
     return f"exit code {proc.returncode} (cwd: {workdir})\n{_clip(out) or '(no output)'}"
 
 
