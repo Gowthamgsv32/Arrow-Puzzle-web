@@ -24,7 +24,7 @@ def chrome(tmp_path_factory):
         pytest.skip("no Chromium available")
     c = Chrome(port=9339, chrome_path=exe, profile_dir=tmp_path_factory.mktemp("profile"),
                headless=True)
-    c.ensure_running()
+    c.ensure_running(timeout=60)
     yield c
     for t in c.tabs():
         c.close(t["id"])

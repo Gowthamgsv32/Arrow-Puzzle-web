@@ -77,7 +77,7 @@ class Chrome:
         except ChromeError:
             return False
 
-    def ensure_running(self) -> None:
+    def ensure_running(self, timeout: float = 30) -> None:
         if self.is_running():
             return
         exe = self.chrome_path or find_chrome()
@@ -97,7 +97,8 @@ class Chrome:
             flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
         subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          creationflags=flags, start_new_session=sys.platform != "win32")
-        deadline = time.monotonic() + 15
+        # A brand-new profile can take a while on first launch.
+        deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.is_running():
                 return
