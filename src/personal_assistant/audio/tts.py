@@ -22,11 +22,13 @@ OFFLINE_RETRY_SECONDS = 60  # after a network failure, skip the online voice for
 class TextToSpeech:
     def __init__(self, offline_engine=None):
         self._offline = offline_engine or OfflineVoice()
-        self._online_failed_at = 0.0
+        self._online_failed_at: float | None = None  # monotonic time of last online failure
 
     @property
     def using_offline(self) -> bool:
-        return time.monotonic() - self._online_failed_at < OFFLINE_RETRY_SECONDS
+        # (monotonic() starts near 0 at boot, so "never failed" must not be stored as 0.0)
+        failed = self._online_failed_at
+        return failed is not None and time.monotonic() - failed < OFFLINE_RETRY_SECONDS
 
     def speak(self, text: str, voice: str, language: str = "en") -> str:
         """Speak `text`. Returns which engine spoke: "online", "offline" or "none"."""

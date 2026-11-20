@@ -113,3 +113,12 @@ def test_out_of_credit_in_tamil():
 
 def test_is_billing_error_ignores_other_errors():
     assert not is_billing_error(ValueError("credit balance"))
+
+
+def test_online_voice_is_tried_first_right_after_boot(monkeypatch):
+    monkeypatch.setattr("personal_assistant.audio.tts.time.monotonic", lambda: 5.0)
+    tts = TextToSpeech(OfflineVoice(lambda: FakeEngine([ZIRA])))
+    spoken = []
+    tts._speak_online = lambda text, voice: spoken.append(text)
+    assert tts.speak("hi", "en-IN-NeerjaNeural", "en") == "online"
+    assert spoken == ["hi"]
