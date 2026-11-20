@@ -52,7 +52,8 @@ def test_read_defaults_to_most_recent_tab(chrome):
 
 
 def test_run_command_captures_output_and_exit_code(tmp_path):
-    out = system.run_command("echo hello && exit 3", str(tmp_path))
+    chain = "; " if sys.platform == "win32" and "5.1" in system.shell_name() else " && "
+    out = system.run_command(f"echo hello{chain}exit 3", str(tmp_path))
     assert "exit code 3" in out and "hello" in out
 
 

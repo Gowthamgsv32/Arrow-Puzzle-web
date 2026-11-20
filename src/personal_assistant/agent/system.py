@@ -15,8 +15,17 @@ def default_workspace() -> Path:
     return Path(os.getenv("PA_WORKSPACE") or Path.home()).expanduser()
 
 
+def _windows_shell() -> str:
+    """PowerShell 7 (pwsh) if installed - it supports `&&` - else Windows PowerShell 5.1."""
+    return "pwsh" if shutil.which("pwsh") else "powershell"
+
+
 def shell_name() -> str:
-    return "PowerShell" if sys.platform == "win32" else os.path.basename(os.getenv("SHELL", "bash"))
+    if sys.platform == "win32":
+        if _windows_shell() == "pwsh":
+            return "PowerShell 7"
+        return "Windows PowerShell 5.1 (no `&&`/`||`: chain with `;` or `if ($?) { ... }`)"
+    return os.path.basename(os.getenv("SHELL", "bash"))
 
 
 def run_command(command: str, cwd: str | None, timeout: int = 120) -> str:
@@ -24,7 +33,7 @@ def run_command(command: str, cwd: str | None, timeout: int = 120) -> str:
     if not workdir.is_dir():
         return f"Error: directory not found: {workdir}"
     if sys.platform == "win32":
-        args = ["powershell", "-NoProfile", "-NonInteractive", "-Command", command]
+        args = [_windows_shell(), "-NoProfile", "-NonInteractive", "-Command", command]
         flags = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
         shell = False
     else:
