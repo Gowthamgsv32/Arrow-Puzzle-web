@@ -64,6 +64,7 @@ class VoiceLoop:
         self.agent_wake_words = [w for w in settings.agent_wake_word.split(",") if w.strip()]
         self.agent = None
         self.brain = self.stt = self.tts = None
+        self._offline_noted = False
         self._cancel = threading.Event()
         self._busy = False
         self._queue: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -228,7 +229,7 @@ class VoiceLoop:
         if not accepted:
             return
         self.events.on_reply(response.reply, response.locale.code)
-        self._speak(response.reply, response.locale.tts_voice)
+        self._speak(response.reply, response.locale.tts_voice, response.locale.code)
         if response.intent == "exit":
             if self.exit_quits:
                 self._stop.set()
@@ -248,18 +249,21 @@ class VoiceLoop:
         finally:
             self._busy = False
         self.events.on_reply(reply.text, reply.language)
-        self._speak(reply.text, self.brain.locale(reply.language).tts_voice)
+        self._speak(reply.text, self.brain.locale(reply.language).tts_voice, reply.language)
         self._drain_audio()
         if not self._stop.is_set():
             self._status(MUTED if self._muted else LISTENING)
 
-    def _speak(self, text: str, voice: str) -> None:
-        if not self.tts or not voice:
+    def _speak(self, text: str, voice: str, language: str = "en") -> None:
+        if not self.tts:
             return
         self._status(SPEAKING)
         self._speaking = True
         try:
-            self.tts.speak(text, voice)
+            engine = self.tts.speak(text, voice, language)
+            if engine == "offline" and not self._offline_noted:
+                self._offline_noted = True
+                self.events.on_step("offline: using the computer's built-in voice")
         except Exception as exc:  # noqa: BLE001 - offline / audio device issues shouldn't stop listening
             log.warning("Text-to-speech failed: %s", exc)
         finally:

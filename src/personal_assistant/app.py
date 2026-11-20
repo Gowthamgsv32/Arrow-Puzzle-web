@@ -123,6 +123,13 @@ def selftest() -> int:
         if sys.platform == "win32" or os.getenv("DISPLAY"):
             import pyautogui  # noqa: F401  (needs a display on Linux)
 
+        if sys.platform == "win32":  # offline voice: SAPI must load inside the .exe
+            from personal_assistant.audio.tts import _default_engine
+
+            voices = _default_engine().getProperty("voices")
+            log.info("Offline voices: %s", [v.name for v in voices])
+            assert voices, "no SAPI voices"
+
         DeveloperAgent(Settings(), client=object())  # tools + prompt build without network
         assert "desktop assistant" in build_system_prompt()
 

@@ -61,6 +61,19 @@ it remembers them. Use that window for browsing you want the assistant to see.
 The heavy work (speech recognition) runs in optimised C++/CUDA inside `faster-whisper`, so Python's
 speed is not the bottleneck.
 
+## Online vs offline
+
+| Feature | Offline? |
+|---|---|
+| Listening + speech recognition (Whisper, English + Tamil) | ✅ after the first model download |
+| Built-in commands: time, date, open apps/sites, web search | ✅ |
+| Spoken replies | ✅ falls back to the voices built into Windows when Edge's online voices can't be reached. Tamil offline needs the Windows Tamil voice pack (*Settings → Time & language → Speech → Add voices*); without it Tamil replies are shown as text. |
+| AI agent (mouse, terminal, Chrome, files) | ❌ needs internet and Anthropic API credit |
+
+**Cost & limits:** the AI agent uses the pay-as-you-go Anthropic API (separate from a Claude.ai
+subscription). If the credit runs out or a spend limit is hit, the assistant says so and keeps
+working for built-in commands. Set a monthly spend limit at console.anthropic.com.
+
 ## Download & install (Windows)
 
 1. Open the repo's **Actions** tab → latest **Build Windows app** run → download the
@@ -189,7 +202,7 @@ Then add `weather` trigger phrases and a `weather` response to every locale file
 - [x] AI agent: mouse/keyboard, terminal, Chrome tabs, clipboard, files
 - [ ] Neural wake word ("Hey Assistant") with openWakeWord
 - [ ] VS Code integration (open files at a line, run tasks) and GitHub API tools
-- [ ] Offline TTS option
+- [x] Offline voice fallback
 - [ ] More languages
 
 ## Development

@@ -209,6 +209,8 @@ _MESSAGES = {
         "done": "Done.",
         "too_many_steps": "This is taking too many steps, so I stopped. Please try a smaller task.",
         "no_key": "The AI agent needs an Anthropic API key. Add ANTHROPIC_API_KEY to the .env file.",
+        "no_credit": "Your Anthropic API credit is used up or a spending limit was reached. Add "
+                     "credit at console.anthropic.com. Built-in commands still work.",
         "network": "I couldn't reach the AI service. Please check the internet connection.",
         "busy": "The AI service is busy right now. Please try again in a minute.",
         "error": "Something went wrong while talking to the AI service.",
@@ -219,6 +221,8 @@ _MESSAGES = {
         "done": "முடிந்தது.",
         "too_many_steps": "இது அதிக படிகள் எடுக்கிறது, அதனால் நிறுத்திவிட்டேன்.",
         "no_key": "AI உதவிக்கு Anthropic API key தேவை. .env கோப்பில் ANTHROPIC_API_KEY சேர்க்கவும்.",
+        "no_credit": "உங்கள் Anthropic API கிரெடிட் தீர்ந்துவிட்டது அல்லது செலவு வரம்பை எட்டிவிட்டது. "
+                     "console.anthropic.com-ல் கிரெடிட் சேர்க்கவும். சாதாரண கட்டளைகள் இன்னும் வேலை செய்யும்.",
         "network": "AI சேவையை அணுக முடியவில்லை. இணைய இணைப்பைச் சரிபார்க்கவும்.",
         "busy": "AI சேவை இப்போது பிஸியாக உள்ளது. சிறிது நேரம் கழித்து முயற்சிக்கவும்.",
         "error": "AI சேவையுடன் பேசும்போது பிழை ஏற்பட்டது.",
@@ -232,6 +236,8 @@ def _api_error_message(exc: Exception, lang: str) -> str:
     except ImportError:
         return _MESSAGES["en"]["error"]
     msgs = _MESSAGES.get(lang, _MESSAGES["en"])
+    if is_billing_error(exc):
+        return msgs["no_credit"]
     if isinstance(exc, anthropic.AuthenticationError | anthropic.PermissionDeniedError):
         return msgs["no_key"]
     if isinstance(exc, anthropic.RateLimitError | anthropic.InternalServerError):
@@ -241,3 +247,23 @@ def _api_error_message(exc: Exception, lang: str) -> str:
     if isinstance(exc, TypeError) and "api_key" in str(exc):
         return msgs["no_key"]
     return msgs["error"]
+
+
+_BILLING_HINTS = ("credit balance", "spend limit", "spending limit", "billing", "on hold",
+                  "payment", "usage limit", "quota")
+
+
+def is_billing_error(exc: Exception) -> bool:
+    """Out of credit / spend limit / account on hold, as opposed to a temporary overload."""
+    import anthropic
+
+    if not isinstance(exc, anthropic.APIStatusError):
+        return False
+    if exc.status_code == 402:
+        return True
+    error = exc.body.get("error", {}) if isinstance(exc.body, dict) else {}
+    kind = str(error.get("type", "")).lower()
+    text = f"{kind} {error.get('message', '')} {exc.message}".lower()
+    if "billing" in kind or "spend_limit" in kind or "on_hold" in kind:
+        return True
+    return exc.status_code in (400, 403, 429) and any(h in text for h in _BILLING_HINTS)

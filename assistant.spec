@@ -17,6 +17,8 @@ for pkg in (
     "soundfile",
     "_soundfile_data",  # libsndfile DLL
     "edge_tts",
+    "pyttsx3",  # offline voice (drivers are imported dynamically)
+    "comtypes",
     "certifi",
     "anthropic",  # AI agent
     "jiter",
