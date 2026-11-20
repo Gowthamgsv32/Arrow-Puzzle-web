@@ -18,6 +18,13 @@ for pkg in (
     "_soundfile_data",  # libsndfile DLL
     "edge_tts",
     "certifi",
+    "anthropic",  # AI agent
+    "jiter",
+    "httpx2",
+    "pyautogui",
+    "mss",
+    "pyperclip",
+    "websocket",
 ):
     try:
         d, b, h = collect_all(pkg)
@@ -32,7 +39,11 @@ a = Analysis(
     pathex=["src"],
     datas=datas,
     binaries=binaries,
-    hiddenimports=hiddenimports + ["personal_assistant.skills.builtin"],
+    hiddenimports=hiddenimports + [
+        "personal_assistant.skills.builtin",
+        "personal_assistant.agent.agent",
+        "personal_assistant.agent.tools",
+    ],
     excludes=[
         "tkinter",
         "matplotlib",

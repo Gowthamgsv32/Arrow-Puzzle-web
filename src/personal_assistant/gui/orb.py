@@ -72,7 +72,7 @@ class Orb(QWidget):
                 p.drawEllipse(c, rr, rr)
 
         # Rotating arcs while thinking / loading
-        if self._state in ("thinking", "loading"):
+        if self._state in ("thinking", "loading", "working"):
             pen = QPen(qcolor(core_hex, 220))
             pen.setWidthF(3.0)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)

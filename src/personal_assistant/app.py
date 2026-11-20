@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import threading
 
 from personal_assistant.config import Settings
 from personal_assistant.paths import user_data_dir
@@ -39,24 +40,41 @@ class _ConsoleEvents:
     def on_quit(self) -> None:
         pass
 
+    def on_step(self, text: str) -> None:
+        print(f"  › {text}")
+
+    def on_confirm(self, question: str) -> bool:
+        print(f"\n{question}\nAllow? [y/N] ", end="", flush=True)
+        self.pending_answer = threading.Event()
+        self.answer = False
+        self.pending_answer.wait(timeout=180)
+        self.pending_answer = None
+        return self.answer
+
+    pending_answer: threading.Event | None = None
+    answer: bool = False
+
 
 def run_cli(settings: Settings, voice: bool) -> None:
-    import threading
-
     from personal_assistant.voice_loop import VoiceLoop
 
-    loop = VoiceLoop(settings, _ConsoleEvents(), voice=voice, exit_quits=True)
+    events = _ConsoleEvents()
+    loop = VoiceLoop(settings, events, voice=voice, exit_quits=True)
     worker = threading.Thread(target=loop.run, daemon=True)
     worker.start()
     try:
-        if voice:
-            worker.join()
-        else:
-            while worker.is_alive():
-                line = input()
-                if line.strip():
-                    loop.submit_text(line)
-                    worker.join(timeout=0.3)
+        # stdin carries commands, and y/n answers while an approval is pending
+        while worker.is_alive():
+            line = input() if not voice or events.pending_answer else None
+            if line is None:
+                worker.join(timeout=0.3)
+                continue
+            if events.pending_answer:
+                events.answer = line.strip().lower() in ("y", "yes", "ஆம்")
+                events.pending_answer.set()
+            elif line.strip():
+                loop.submit_text(line)
+                worker.join(timeout=0.3)
     except (EOFError, KeyboardInterrupt):
         loop.stop()
         worker.join(timeout=2)
@@ -89,11 +107,24 @@ def selftest() -> int:
 
     log = logging.getLogger("selftest")
     try:
+        # AI agent stack
+        import anthropic  # noqa: F401
         import ctranslate2  # noqa: F401  (loads the native library)
         import edge_tts  # noqa: F401
         import faster_whisper  # noqa: F401
+        import mss  # noqa: F401
         import numpy  # noqa: F401
+        import pyperclip  # noqa: F401
         import soundfile  # noqa: F401
+        import websocket  # noqa: F401
+
+        from personal_assistant.agent.agent import DeveloperAgent, build_system_prompt
+
+        if sys.platform == "win32" or os.getenv("DISPLAY"):
+            import pyautogui  # noqa: F401  (needs a display on Linux)
+
+        DeveloperAgent(Settings(), client=object())  # tools + prompt build without network
+        assert "desktop assistant" in build_system_prompt()
 
         try:
             import sounddevice  # noqa: F401

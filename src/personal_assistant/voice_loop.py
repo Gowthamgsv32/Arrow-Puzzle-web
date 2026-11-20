@@ -19,8 +19,8 @@ from personal_assistant.intents import normalize
 log = logging.getLogger(__name__)
 
 # UI states
-LOADING, LISTENING, HEARING, THINKING, SPEAKING, MUTED, ERROR = (
-    "loading", "listening", "hearing", "thinking", "speaking", "muted", "error"
+LOADING, LISTENING, HEARING, THINKING, WORKING, SPEAKING, MUTED, ERROR = (
+    "loading", "listening", "hearing", "thinking", "working", "speaking", "muted", "error"
 )
 
 
@@ -30,6 +30,8 @@ class Events(Protocol):
     def on_heard(self, text: str, language: str | None, accepted: bool) -> None: ...
     def on_reply(self, text: str, language: str) -> None: ...
     def on_quit(self) -> None: ...
+    def on_step(self, text: str) -> None: ...  # agent activity, e.g. "$ git status"
+    def on_confirm(self, question: str) -> bool: ...  # blocks until the user answers
 
 
 def strip_wake_word(text: str, wake_words: list[str]) -> str | None:
@@ -59,6 +61,11 @@ class VoiceLoop:
         self.voice = voice
         self.exit_quits = exit_quits
         self.wake_words = [w for w in settings.wake_word.split(",") if w.strip()]
+        self.agent_wake_words = [w for w in settings.agent_wake_word.split(",") if w.strip()]
+        self.agent = None
+        self.brain = self.stt = self.tts = None
+        self._cancel = threading.Event()
+        self._busy = False
         self._queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self._stop = threading.Event()
         self._muted = False
@@ -74,6 +81,15 @@ class VoiceLoop:
 
     def stop(self) -> None:
         self._stop.set()
+        self._cancel.set()
+
+    def cancel_task(self) -> None:
+        """Stop the agent's current task (called from the UI thread)."""
+        self._cancel.set()
+
+    @property
+    def agent_available(self) -> bool:
+        return self.agent is not None
 
     # ---- loop ------------------------------------------------------------------------
     def run(self) -> None:
@@ -86,6 +102,7 @@ class VoiceLoop:
     def _run(self) -> None:
         self.brain = Brain(self.settings)
         self.stt = self.tts = mic = None
+        self._load_agent()
         if self.voice:
             from personal_assistant.audio.listener import Microphone
             from personal_assistant.audio.stt import SpeechToText
@@ -144,8 +161,26 @@ class VoiceLoop:
             if mic:
                 mic.stop()
 
+    def _load_agent(self) -> None:
+        if not self.settings.agent_enabled:
+            return
+        try:
+            from personal_assistant.agent.agent import AgentHooks, DeveloperAgent
+
+            self.agent = DeveloperAgent(
+                self.settings,
+                AgentHooks(
+                    on_step=self.events.on_step,
+                    confirm=self.events.on_confirm,
+                    is_cancelled=self._cancel.is_set,
+                ),
+            )
+        except Exception:
+            log.exception("AI agent unavailable")
+            self.agent = None
+
     def _on_frame(self, frame) -> None:
-        if not self._speaking and not self._muted:
+        if not self._speaking and not self._busy and not self._muted:
             self._queue.put(("audio", frame))
 
     def _drain_audio(self) -> None:
@@ -161,14 +196,32 @@ class VoiceLoop:
         for item in keep:
             self._queue.put(item)
 
+    def _agent_command(self, command: str, language: str | None, typed: bool) -> tuple[str, bool]:
+        """Return (command, use_agent). Spoken agent tasks need the agent wake word."""
+        if not self.agent:
+            return command, False
+        if typed:
+            return command, not self.brain.is_simple(command, language)
+        addressed = strip_wake_word(command, self.agent_wake_words)
+        if addressed is None:  # not addressed to the agent: only built-in commands apply
+            return command, False
+        if not addressed:
+            return command, False
+        return addressed, not self.brain.is_simple(addressed, language)
+
     def _handle(self, text: str, language: str | None, typed: bool) -> None:
         command = text if typed else strip_wake_word(text, self.wake_words)
         if command is None:
             self.events.on_heard(text, language, accepted=False)
             return
+        command, use_agent = self._agent_command(command, language, typed)
+        if use_agent:
+            self.events.on_heard(text, language, accepted=True)
+            self._run_agent(command, language)
+            return
         response = self.brain.process(command, language)
-        # In always-listening mode, ignore chatter that isn't a command.
-        accepted = typed or response.understood
+        # In always-listening mode, ignore chatter that isn't clearly a command.
+        accepted = typed or (response.understood and self.brain.is_confident(command, language))
         if language is None and response.understood:
             language = response.locale.code
         self.events.on_heard(text, language, accepted=accepted)
@@ -184,6 +237,20 @@ class VoiceLoop:
                 self._muted = True
                 self._status(MUTED)
         elif typed and not self._stop.is_set():
+            self._status(MUTED if self._muted else LISTENING)
+
+    def _run_agent(self, command: str, language: str | None) -> None:
+        self._cancel.clear()
+        self._busy = True
+        self._status(WORKING)
+        try:
+            reply = self.agent.run(command, language)
+        finally:
+            self._busy = False
+        self.events.on_reply(reply.text, reply.language)
+        self._speak(reply.text, self.brain.locale(reply.language).tts_voice)
+        self._drain_audio()
+        if not self._stop.is_set():
             self._status(MUTED if self._muted else LISTENING)
 
     def _speak(self, text: str, voice: str) -> None:

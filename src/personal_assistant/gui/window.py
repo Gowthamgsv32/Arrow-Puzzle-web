@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
+    QMessageBox,
     QPushButton,
     QSystemTrayIcon,
     QVBoxLayout,
@@ -36,6 +37,8 @@ class Bridge(QObject):
     heard = Signal(str, object, bool)
     reply = Signal(str, str)
     quit = Signal()
+    step = Signal(str)
+    confirm_requested = Signal(str, object)
 
     def on_status(self, state: str, detail: str = "") -> None:
         self.status.emit(state, detail)
@@ -51,6 +54,17 @@ class Bridge(QObject):
 
     def on_quit(self) -> None:
         self.quit.emit()
+
+    def on_step(self, text: str) -> None:
+        self.step.emit(text)
+
+    def on_confirm(self, question: str) -> bool:
+        """Called on the worker thread; blocks until the user answers in the UI."""
+        answer = {"ok": False, "done": threading.Event()}
+        self.confirm_requested.emit(question, answer)
+        if not answer["done"].wait(timeout=180):
+            return False  # no answer in 3 minutes = no
+        return answer["ok"]
 
 
 def app_icon() -> QIcon:
@@ -104,12 +118,22 @@ class MainWindow(QWidget):
         self.bridge.heard.connect(self._on_heard)
         self.bridge.reply.connect(self._on_reply)
         self.bridge.quit.connect(self.quit_app)
+        self.bridge.step.connect(self.chat.add_step)
+        self.bridge.confirm_requested.connect(self._ask_confirm)
 
         self.loop = VoiceLoop(settings, self.bridge, voice=voice)
         self._thread = threading.Thread(target=self.loop.run, name="voice-loop", daemon=True)
         self._thread.start()
 
         hint = "Say “open YouTube” or “யூடியூப் திற”" if voice else "Voice is off — type a command"
+        if settings.agent_enabled:
+            word = settings.agent_wake_word.split(",")[0].strip()
+            if voice and word:
+                hint += f"\nFor AI tasks start with “{word}”: “{word}, summarize my open tab”"
+            else:
+                hint += "\nAI agent is on: ask for anything on your computer"
+        else:
+            hint += "\nAI agent is off — add ANTHROPIC_API_KEY to .env to enable it"
         self.chat.add_notice(hint)
 
     # ---- layout ----------------------------------------------------------------------
@@ -142,7 +166,19 @@ class MainWindow(QWidget):
         self.status.setFont(ui_font(10))
         self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status.setWordWrap(True)
-        root.addWidget(self.status)
+        self.stop_btn = QPushButton("Stop")
+        self.stop_btn.setObjectName("stop")
+        self.stop_btn.setFont(ui_font(9, QFont.Weight.DemiBold))
+        self.stop_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.stop_btn.setToolTip("Stop the current task (or slam the mouse into a screen corner)")
+        self.stop_btn.clicked.connect(lambda: self.loop.cancel_task())
+        self.stop_btn.hide()
+        status_row = QHBoxLayout()
+        status_row.addStretch(1)
+        status_row.addWidget(self.status)
+        status_row.addWidget(self.stop_btn)
+        status_row.addStretch(1)
+        root.addLayout(status_row)
 
         self.chat = ChatView()
         root.addWidget(self.chat, 4)
@@ -211,7 +247,20 @@ class MainWindow(QWidget):
             self.tray_mute.setChecked(muted)
         self.loop.set_muted(muted)
 
+    def _ask_confirm(self, question: str, answer: dict) -> None:
+        self._show_window()
+        box = QMessageBox(self)
+        box.setWindowTitle("Allow this action?")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(question)
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        answer["ok"] = box.exec() == QMessageBox.StandardButton.Yes
+        self.chat.add_step("approved" if answer["ok"] else "declined")
+        answer["done"].set()
+
     def _on_status(self, state: str, detail: str) -> None:
+        self.stop_btn.setVisible(state == "working")
         self.orb.set_state(state)
         self.status.setText(detail or STATE_LABELS["en"].get(state, state))
         self.tray.setToolTip(f"Personal Assistant — {STATE_LABELS['en'].get(state, state)}")

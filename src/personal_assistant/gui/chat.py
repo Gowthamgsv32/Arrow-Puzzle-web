@@ -38,6 +38,17 @@ class ChatView(QScrollArea):
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._insert(label)
 
+    def add_step(self, text: str) -> None:
+        label = QLabel(f"›  {text}")
+        label.setObjectName("step")
+        font = ui_font(9)
+        font.setFamilies(["Cascadia Mono", "Consolas", "JetBrains Mono", "DejaVu Sans Mono",
+                          "monospace", *font.families()])
+        label.setFont(font)
+        label.setWordWrap(True)
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._insert(label)
+
     def add_notice(self, text: str) -> None:
         label = QLabel(text)
         label.setObjectName("meta")

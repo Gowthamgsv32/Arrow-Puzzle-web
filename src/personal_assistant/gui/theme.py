@@ -17,6 +17,7 @@ STATE_COLORS = {
     "listening": ("#22d3ee", "#7c5cff"),
     "hearing": ("#67e8f9", "#22d3ee"),
     "thinking": ("#fbbf24", "#f97316"),
+    "working": ("#c4b5fd", "#7c5cff"),
     "speaking": ("#34d399", "#22d3ee"),
     "muted": ("#64748b", "#334155"),
     "error": ("#f87171", "#b91c1c"),
@@ -28,6 +29,7 @@ STATE_LABELS = {
         "listening": "Listening — just speak",
         "hearing": "Hearing you…",
         "thinking": "Thinking…",
+        "working": "Working on it…",
         "speaking": "Speaking…",
         "muted": "Paused — click the mic to resume",
         "error": "Something went wrong",
@@ -79,6 +81,15 @@ QLabel#assistantBubble {{
     border-radius: 16px; padding: 10px 14px;
 }}
 QLabel#ignored {{ color: #5d6587; font-style: italic; }}
+QLabel#step {{
+    color: #a5b4fc; background: rgba(124, 92, 255, 0.10); border-left: 2px solid {ACCENT_1};
+    border-radius: 6px; padding: 4px 8px;
+}}
+QPushButton#stop {{
+    color: white; border: none; border-radius: 13px; padding: 4px 14px; min-height: 26px;
+    background: #ef4444;
+}}
+QPushButton#stop:hover {{ background: #dc2626; }}
 QLabel#meta {{ color: #6b739a; }}
 QFrame#inputBar {{
     background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 22px;

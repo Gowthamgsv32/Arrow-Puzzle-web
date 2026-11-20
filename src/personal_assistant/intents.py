@@ -20,6 +20,13 @@ class Intent:
     argument: str
     language: str
     text: str
+    phrase: str = ""  # the trigger phrase that matched
+
+    @property
+    def phrase_at_edge(self) -> bool:
+        """Command word starts or ends the sentence ("open X" / "X திற"), not buried mid-sentence."""
+        norm = normalize(self.text)
+        return bool(self.phrase) and (norm.startswith(self.phrase) or norm.endswith(self.phrase))
 
 
 def normalize(text: str) -> str:
@@ -57,7 +64,7 @@ class IntentMatcher:
         for lang, intent, phrase in candidates:
             if phrase and _contains_phrase(norm, phrase):
                 argument = _remove_phrase(norm, phrase)
-                return Intent(intent, argument, language or lang, text)
+                return Intent(intent, argument, language or lang, text, phrase)
         return Intent("unknown", norm, language or "", text)
 
 

@@ -17,6 +17,13 @@ def _load_dotenv() -> None:
     load_dotenv(user_data_dir() / ".env")
 
 
+def _flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None or value.strip() == "":
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass(frozen=True)
 class Settings:
     languages: list[str] = field(default_factory=lambda: ["en", "ta"])
@@ -31,6 +38,15 @@ class Settings:
     vad_max_seconds: float = 15.0  # hard cap per utterance
     # Act only on commands that start with this word (empty = act on everything)
     wake_word: str = ""
+    # AI agent (Claude) for everything beyond the built-in commands
+    agent_enabled: bool = False
+    agent_model: str = "claude-opus-5-5"
+    agent_effort: str = "medium"  # low | medium | high | xhigh | max
+    agent_max_steps: int = 40
+    # In always-listening mode, agent tasks must start with one of these words so that
+    # background conversation is never sent to the AI. Empty = send every unmatched sentence.
+    agent_wake_word: str = "assistant,அசிஸ்டன்ட்,அசிஸ்டென்ட்"
+    auto_approve: bool = False  # True = never ask before risky commands (not recommended)
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -49,4 +65,12 @@ class Settings:
             vad_silence_ms=int(os.getenv("PA_VAD_SILENCE_MS", "700")),
             vad_max_seconds=float(os.getenv("PA_VAD_MAX_SECONDS", "15")),
             wake_word=os.getenv("PA_WAKE_WORD", "").strip(),
+            agent_enabled=_flag("PA_AGENT", default=bool(os.getenv("ANTHROPIC_API_KEY"))),
+            agent_model=os.getenv("PA_AGENT_MODEL", "claude-opus-5-5"),
+            agent_effort=os.getenv("PA_AGENT_EFFORT", "medium"),
+            agent_max_steps=int(os.getenv("PA_AGENT_MAX_STEPS", "40")),
+            agent_wake_word=os.getenv(
+                "PA_AGENT_WAKE_WORD", "assistant,அசிஸ்டன்ட்,அசிஸ்டென்ட்"
+            ).strip(),
+            auto_approve=_flag("PA_AUTO_APPROVE", default=False),
         )

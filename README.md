@@ -1,7 +1,50 @@
 # Personal Assistant
 
-A voice-controlled desktop personal assistant that understands **English** and **தமிழ் (Tamil)**,
-designed so more languages can be added by dropping in a single file.
+A voice-controlled desktop assistant for developers that understands **English** and
+**தமிழ் (Tamil)**. Simple commands run instantly on your PC; anything else goes to an **AI agent
+(Claude)** that operates your computer: mouse, keyboard, terminal, Chrome tabs, clipboard and files.
+
+## AI agent: what you can ask
+
+Say **"assistant, …"** (or **"அசிஸ்டன்ட், …"**), or just type in the box:
+
+- "assistant, read my open Chrome tab and summarize it"
+- "assistant, open the GitHub PR tabs and tell me which ones have failing checks"
+- "assistant, run the tests in my api project and tell me what failed"
+- "assistant, copy the error from the terminal and search it on Google"
+- "assistant, close all the YouTube tabs"
+- "அசிஸ்டன்ட், git status காட்டு"
+- "assistant, open VS Code and click Run on the debug panel"
+
+| Capability | How |
+|---|---|
+| Mouse, keyboard, any app on screen | Claude computer-use toolset (screenshots, click, drag, scroll, type, key combos, zoom) |
+| Terminal | `run_command` captures output (PowerShell on Windows); `open_terminal` for servers/watchers |
+| Chrome tabs | List / open / switch / close / navigate / **read page text** / run JavaScript (DevTools protocol) |
+| Copy & paste | Clipboard read/write + `ctrl+c` / `ctrl+v` |
+| Files | Read, write, list folders; open files, folders and apps |
+
+**Setup:** put `ANTHROPIC_API_KEY=sk-ant-…` in `.env` (next to the `.exe`, or in
+`%LOCALAPPDATA%\PersonalAssistant\.env`). The agent uses `claude-opus-5-5`; set
+`PA_AGENT_EFFORT=low` for faster, cheaper answers.
+
+**Chrome:** the assistant drives a Chrome window with its own profile (Chrome only allows remote
+control on a separate profile). The first time it opens Chrome, sign in to your accounts there;
+it remembers them. Use that window for browsing you want the assistant to see.
+
+### Safety
+
+- **Asks first:** terminal commands that change things (installs, deletes, `git push`, redirects,
+  chained commands), file writes and JavaScript show an *Allow this action?* dialog. Read-only
+  commands (`git status`, `ls`, `git diff`, …) run directly.
+- **Stop button** while it works, or **slam the mouse into any screen corner** to abort mouse
+  control instantly.
+- In always-listening mode only sentences that start with the wake word reach the AI, so
+  background conversation is never sent anywhere. Simple built-in commands still work without it.
+- Text read from web pages, files and command output is treated as data. The agent is told not to
+  follow instructions found there.
+- Every API call costs money (screenshots are the expensive part). Reading tabs as text is much
+  cheaper than screenshots, and the agent prefers it.
 
 ## Why Python
 
@@ -56,7 +99,13 @@ stricter mode set a wake word (`PA_WAKE_WORD=assistant`) in `.env`.
 ```
 src/personal_assistant/
 ├── app.py              # entry: desktop UI (default), --cli, --text, --selftest
-├── voice_loop.py       # always-listening loop: mic → VAD → STT → brain → TTS
+├── voice_loop.py       # always-listening loop: mic → VAD → STT → brain/agent → TTS
+├── agent/
+│   ├── agent.py        # Claude tool-use loop, approvals, cancel, spoken replies
+│   ├── tools.py        # tool schemas + which actions need approval
+│   ├── computer.py     # computer-use toolset → pyautogui/mss (screen scaling, keys)
+│   ├── chrome.py       # Chrome DevTools protocol: tabs, page text, JavaScript
+│   └── system.py       # terminal, clipboard, files, open apps
 ├── core.py             # Brain: text → intent → skill → localized reply
 ├── config.py           # settings from env / .env
 ├── i18n.py, intents.py # locale files + language-agnostic intent matching
@@ -79,7 +128,7 @@ Requires Python 3.10+.
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate   |   macOS/Linux: source .venv/bin/activate
-pip install -e ".[gui,voice,dev]"
+pip install -e ".[gui,voice,agent,dev]"
 personal-assistant              # desktop app, always listening
 personal-assistant --text       # desktop app, typing only
 personal-assistant-cli --cli    # terminal, always listening
@@ -93,7 +142,7 @@ accuracy if your PC can handle it. Voices use Edge neural TTS and need internet.
 On Windows:
 
 ```bash
-pip install -e ".[gui,voice,build]"
+pip install -e ".[gui,voice,agent,build]"
 pyinstaller assistant.spec --noconfirm        # → dist\PersonalAssistant\PersonalAssistant.exe
 iscc /DAppVersion=0.2.0 packaging\installer.iss   # optional installer (needs Inno Setup 6)
 ```
@@ -137,8 +186,9 @@ Then add `weather` trigger phrases and a `weather` response to every locale file
 
 - [x] Always-listening with voice activity detection
 - [x] Desktop UI, tray icon, Windows installer
+- [x] AI agent: mouse/keyboard, terminal, Chrome tabs, clipboard, files
 - [ ] Neural wake word ("Hey Assistant") with openWakeWord
-- [ ] LLM fallback for questions the built-in skills don't cover
+- [ ] VS Code integration (open files at a line, run tasks) and GitHub API tools
 - [ ] Offline TTS option
 - [ ] More languages
 

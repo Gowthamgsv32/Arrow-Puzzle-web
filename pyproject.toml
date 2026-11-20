@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "personal-assistant"
 version = "0.1.0"
-description = "A multilingual (English + Tamil) voice-controlled desktop personal assistant."
+description = "A multilingual (English + Tamil) voice-controlled desktop assistant and AI agent for developers."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -24,12 +24,22 @@ voice = [
     "faster-whisper>=1.0",
     "edge-tts>=6.1",
 ]
+agent = [
+    "anthropic>=2.11",
+    "pyautogui>=0.9.54",
+    "mss>=9.0",
+    "pillow>=10.0",
+    "pyperclip>=1.9",
+    "websocket-client>=1.8",
+]
 build = [
     "pyinstaller>=6.6",
 ]
 dev = [
     "pytest>=8.0",
     "numpy>=1.24",
+    "anthropic>=2.11",
+    "websocket-client>=1.8",
     "ruff>=0.5",
 ]
 
