@@ -163,12 +163,11 @@ class VoiceLoop:
                 mic.stop()
 
     def _load_agent(self) -> None:
-        if not self.settings.agent_enabled:
-            return
         try:
-            from personal_assistant.agent.agent import AgentHooks, DeveloperAgent
+            from personal_assistant.agent.agent import AgentHooks
+            from personal_assistant.agent.hybrid import build_agent
 
-            self.agent = DeveloperAgent(
+            self.agent = build_agent(
                 self.settings,
                 AgentHooks(
                     on_step=self.events.on_step,
@@ -179,6 +178,12 @@ class VoiceLoop:
         except Exception:
             log.exception("AI agent unavailable")
             self.agent = None
+        if self.agent is not None:
+            self.events.on_step(f"AI brain: {self.agent.description}")
+        else:
+            self.events.on_step(
+                "AI agent off: add ANTHROPIC_API_KEY to .env, or install Ollama for a local model"
+            )
 
     def _on_frame(self, frame) -> None:
         if not self._speaking and not self._busy and not self._muted:

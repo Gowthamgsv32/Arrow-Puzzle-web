@@ -75,6 +75,9 @@ class AgentHooks:
 class AgentReply:
     text: str
     language: str
+    # Set when Claude could not be used at all, so another brain can take over:
+    # "no_credit" | "no_key" | "network" | "busy" | "error"
+    unavailable: str | None = None
 
 
 def reply_language(text: str, fallback: str) -> str:
@@ -119,7 +122,8 @@ class DeveloperAgent:
                 response = self._create()
             except Exception as exc:
                 log.exception("Claude API call failed")
-                return AgentReply(_api_error_message(exc, lang), lang)
+                kind = api_error_kind(exc)
+                return AgentReply(self._say(lang, kind), lang, unavailable=kind)
 
             self.messages.append({"role": "assistant", "content": response.content})
             if response.stop_reason == "refusal":
@@ -230,23 +234,23 @@ _MESSAGES = {
 }
 
 
-def _api_error_message(exc: Exception, lang: str) -> str:
+def api_error_kind(exc: Exception) -> str:
+    """Classify an API failure: no_credit | no_key | busy | network | error."""
     try:
         import anthropic
     except ImportError:
-        return _MESSAGES["en"]["error"]
-    msgs = _MESSAGES.get(lang, _MESSAGES["en"])
+        return "error"
     if is_billing_error(exc):
-        return msgs["no_credit"]
+        return "no_credit"
     if isinstance(exc, anthropic.AuthenticationError | anthropic.PermissionDeniedError):
-        return msgs["no_key"]
+        return "no_key"
     if isinstance(exc, anthropic.RateLimitError | anthropic.InternalServerError):
-        return msgs["busy"]
+        return "busy"
     if isinstance(exc, anthropic.APIConnectionError):
-        return msgs["network"]
+        return "network"
     if isinstance(exc, TypeError) and "api_key" in str(exc):
-        return msgs["no_key"]
-    return msgs["error"]
+        return "no_key"
+    return "error"
 
 
 _BILLING_HINTS = ("credit balance", "spend limit", "spending limit", "billing", "on hold",

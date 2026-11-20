@@ -126,14 +126,9 @@ class MainWindow(QWidget):
         self._thread.start()
 
         hint = "Say “open YouTube” or “யூடியூப் திற”" if voice else "Voice is off — type a command"
-        if settings.agent_enabled:
-            word = settings.agent_wake_word.split(",")[0].strip()
-            if voice and word:
-                hint += f"\nFor AI tasks start with “{word}”: “{word}, summarize my open tab”"
-            else:
-                hint += "\nAI agent is on: ask for anything on your computer"
-        else:
-            hint += "\nAI agent is off — add ANTHROPIC_API_KEY to .env to enable it"
+        word = settings.agent_wake_word.split(",")[0].strip()
+        if voice and word:
+            hint += f"\nFor AI tasks start with “{word}”: “{word}, summarize my open tab”"
         self.chat.add_notice(hint)
 
     # ---- layout ----------------------------------------------------------------------

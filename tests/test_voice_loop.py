@@ -25,6 +25,12 @@ class Recorder:
     def on_quit(self):
         self.quit = True
 
+    def on_step(self, text):
+        pass
+
+    def on_confirm(self, question):
+        return False
+
 
 def test_strip_wake_word():
     assert strip_wake_word("Open YouTube", []) == "Open YouTube"

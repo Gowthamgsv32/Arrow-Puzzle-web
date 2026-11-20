@@ -32,6 +32,31 @@ Say **"assistant, …"** (or **"அசிஸ்டன்ட், …"**), or just
 control on a separate profile). The first time it opens Chrome, sign in to your accounts there;
 it remembers them. Use that window for browsing you want the assistant to see.
 
+### Local AI brain (free, offline, private)
+
+Alongside Claude, the agent can use an open-weight model running on your own PC through
+[Ollama](https://ollama.com). By default Claude does the work and the local model **takes over
+automatically** when there is no internet, the API credit is used up, or there is no API key.
+
+1. Install Ollama from ollama.com (it runs in the background).
+2. Download a model, in a terminal:
+   `ollama pull qwen2.5:7b` (≈4.7 GB; best quality on a 32 GB laptop) or
+   `ollama pull qwen2.5:3b` (≈2 GB; about twice as fast).
+3. Start the assistant. The activity feed shows e.g.
+   `AI brain: Claude (claude-opus-5-5) + local qwen2.5:7b (fallback)`.
+
+| `.env` setting | Effect |
+|---|---|
+| `PA_AGENT_BRAIN=auto` (default) | Claude first, local model when Claude is unavailable |
+| `PA_AGENT_BRAIN=local` | Local model only: nothing leaves your PC, no cost |
+| `PA_AGENT_BRAIN=claude` | Claude only |
+| `PA_LOCAL_MODEL=qwen2.5:3b` | Use a different Ollama model (it must support tool calling) |
+
+What to expect on a laptop **without a separate graphics card** (e.g. Intel i7 + Iris Xe):
+the model runs on the CPU at roughly 4–8 words per second for a 7B model, so each step takes
+10–40 seconds. It handles terminal, file, clipboard and Chrome-tab tasks; it **cannot** control
+the mouse or read the screen (that stays with Claude), and its Tamil is weaker than Claude's.
+
 ### Safety
 
 - **Asks first:** terminal commands that change things (installs, deletes, `git push`, redirects,

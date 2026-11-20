@@ -47,6 +47,10 @@ class Settings:
     # background conversation is never sent to the AI. Empty = send every unmatched sentence.
     agent_wake_word: str = "assistant,அசிஸ்டன்ட்,அசிஸ்டென்ட்"
     auto_approve: bool = False  # True = never ask before risky commands (not recommended)
+    # Which brain: "auto" (Claude, local model as fallback), "claude" or "local"
+    agent_brain: str = "auto"
+    local_model: str = "qwen2.5:7b"  # any Ollama model with tool support
+    ollama_url: str = "http://127.0.0.1:11434"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -73,4 +77,7 @@ class Settings:
                 "PA_AGENT_WAKE_WORD", "assistant,அசிஸ்டன்ட்,அசிஸ்டென்ட்"
             ).strip(),
             auto_approve=_flag("PA_AUTO_APPROVE", default=False),
+            agent_brain=os.getenv("PA_AGENT_BRAIN", "auto").strip().lower() or "auto",
+            local_model=os.getenv("PA_LOCAL_MODEL", "qwen2.5:7b").strip(),
+            ollama_url=os.getenv("PA_OLLAMA_URL", "http://127.0.0.1:11434").strip(),
         )
