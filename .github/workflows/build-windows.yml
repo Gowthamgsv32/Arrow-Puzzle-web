@@ -1,0 +1,77 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed to attach files to a GitHub Release on tags
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[gui,voice,build,dev]"
+
+      - name: Test
+        run: pytest -q
+
+      - name: Version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "APP_VERSION=0.2.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build .exe (PyInstaller)
+        run: pyinstaller assistant.spec --noconfirm
+
+      - name: Smoke-test the .exe
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\PersonalAssistant\PersonalAssistant.exe -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:LOCALAPPDATA\PersonalAssistant\assistant.log" -Tail 20
+          if ($p.ExitCode -ne 0) { throw "Self-test failed with exit code $($p.ExitCode)" }
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+            $env:PATH += ";${env:ProgramFiles(x86)}\Inno Setup 6"
+          }
+          iscc /DAppVersion=$env:APP_VERSION packaging\installer.iss
+
+      - name: Portable zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\PersonalAssistant\* -DestinationPath "dist\PersonalAssistant-$env:APP_VERSION-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PersonalAssistant-${{ env.APP_VERSION }}-windows
+          path: |
+            dist/PersonalAssistant-Setup-*.exe
+            dist/PersonalAssistant-*-portable.zip
+          retention-days: 30
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/PersonalAssistant-Setup-*.exe
+            dist/PersonalAssistant-*-portable.zip

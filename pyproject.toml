@@ -14,6 +14,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+gui = [
+    "PySide6-Essentials>=6.6",
+]
 voice = [
     "numpy>=1.24",
     "sounddevice>=0.4.6",
@@ -21,19 +24,26 @@ voice = [
     "faster-whisper>=1.0",
     "edge-tts>=6.1",
 ]
+build = [
+    "pyinstaller>=6.6",
+]
 dev = [
     "pytest>=8.0",
+    "numpy>=1.24",
     "ruff>=0.5",
 ]
 
 [project.scripts]
+personal-assistant-cli = "personal_assistant.app:main"
+
+[project.gui-scripts]
 personal-assistant = "personal_assistant.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-personal_assistant = ["locales/*.yaml"]
+personal_assistant = ["locales/*.yaml", "assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

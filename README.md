@@ -18,48 +18,88 @@ designed so more languages can be added by dropping in a single file.
 The heavy work (speech recognition) runs in optimised C++/CUDA inside `faster-whisper`, so Python's
 speed is not the bottleneck.
 
+## Download & install (Windows)
+
+1. Open the repo's **Actions** tab → latest **Build Windows app** run → download the
+   `PersonalAssistant-…-windows` artifact (or grab it from **Releases** once a `v*` tag is pushed).
+2. Run `PersonalAssistant-Setup-x.y.z.exe`. No admin rights needed. Tick
+   *"Start automatically when I sign in to Windows"* if you want it always on.
+   A portable `.zip` is included too: unzip and run `PersonalAssistant.exe`.
+3. On first launch it downloads the speech model (`small` ≈ 460 MB), then the orb turns blue:
+   **just speak** — no button, no wake word.
+
+Closing the window keeps it listening in the system tray (right-click the tray icon → *Quit*).
+Click the mic button to pause/resume. Saying "goodbye" / "நிறுத்து" also pauses it.
+
+### How always-listening works
+
+```
+microphone ─► voice activity detection ─► Whisper (en/ta) ─► intent ─► skill ─► spoken reply
+             (waits for you to pause)                         │
+                                                   not a command? → ignored quietly
+```
+
+The mic is ignored while the assistant is speaking, so it doesn't hear itself. Background
+conversation that doesn't match a command is shown faded in the chat and not acted on. For a
+stricter mode set a wake word (`PA_WAKE_WORD=assistant`) in `.env`.
+
+| Orb colour | Meaning |
+|---|---|
+| Blue/violet | Listening |
+| Cyan ripples | Hearing you |
+| Amber spinner | Thinking (transcribing) |
+| Green | Speaking |
+| Grey | Paused / loading |
+
 ## Project layout
 
 ```
 src/personal_assistant/
-├── app.py              # listen → understand → act → reply loop
+├── app.py              # entry: desktop UI (default), --cli, --text, --selftest
+├── voice_loop.py       # always-listening loop: mic → VAD → STT → brain → TTS
+├── core.py             # Brain: text → intent → skill → localized reply
 ├── config.py           # settings from env / .env
-├── i18n.py             # loads locales/*.yaml
-├── intents.py          # language-agnostic intent matching
-├── locales/
-│   ├── en.yaml         # English phrases, replies, TTS voice
-│   └── ta.yaml         # Tamil phrases, replies, TTS voice
-├── skills/
-│   ├── base.py         # @skill registry
-│   └── builtin.py      # greet, time, date, open app/site, web search, exit
-└── audio/
-    ├── recorder.py     # microphone capture
-    ├── stt.py          # speech-to-text (faster-whisper)
-    └── tts.py          # text-to-speech (edge-tts)
-tests/
+├── i18n.py, intents.py # locale files + language-agnostic intent matching
+├── locales/            # en.yaml, ta.yaml  (one file per language)
+├── skills/             # greet, time, date, open app/site, web search, exit
+├── audio/
+│   ├── listener.py     # continuous microphone stream
+│   ├── vad.py          # splits the stream into utterances
+│   ├── stt.py          # faster-whisper speech-to-text
+│   └── tts.py          # edge-tts neural voices
+└── gui/                # PySide6 window, animated orb, chat bubbles, tray icon
+packaging/              # launcher, icon, Inno Setup installer script
+assistant.spec          # PyInstaller build
 ```
 
-## Setup
+## Run from source
 
 Requires Python 3.10+.
 
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate   |   macOS/Linux: source .venv/bin/activate
-pip install -e ".[voice,dev]"
-cp .env.example .env        # optional: tweak languages / model size
+pip install -e ".[gui,voice,dev]"
+personal-assistant              # desktop app, always listening
+personal-assistant --text       # desktop app, typing only
+personal-assistant-cli --cli    # terminal, always listening
 ```
 
-## Run
+Settings live in `.env` (see `.env.example`). Use `PA_WHISPER_MODEL=medium` for better Tamil
+accuracy if your PC can handle it. Voices use Edge neural TTS and need internet.
+
+## Build the .exe yourself
+
+On Windows:
 
 ```bash
-personal-assistant           # voice mode: press Enter, then speak
-personal-assistant --text    # type commands (no microphone needed)
+pip install -e ".[gui,voice,build]"
+pyinstaller assistant.spec --noconfirm        # → dist\PersonalAssistant\PersonalAssistant.exe
+iscc /DAppVersion=0.2.0 packaging\installer.iss   # optional installer (needs Inno Setup 6)
 ```
 
-The first voice run downloads the Whisper model (`small` ≈ 460 MB). Use `medium` or
-`large-v3` in `.env` for better Tamil accuracy if your machine (or GPU) can handle it.
-Text-to-speech uses Edge neural voices and needs an internet connection.
+To publish a release: `git tag v0.2.0 && git push origin v0.2.0` — the workflow attaches the
+installer and portable zip to a GitHub Release.
 
 ### Example commands
 
@@ -70,7 +110,7 @@ Text-to-speech uses Edge neural voices and needs an internet connection.
 | what is the date | இன்று தேதி என்ன |
 | open youtube | யூடியூப் திற |
 | search for weather in Chennai | சென்னை வானிலை தேடு |
-| goodbye | நிறுத்து |
+| goodbye (pauses listening) | நிறுத்து |
 
 The assistant replies in the language you spoke.
 
@@ -95,11 +135,11 @@ Then add `weather` trigger phrases and a `weather` response to every locale file
 
 ## Roadmap
 
-- [ ] Wake word instead of push-to-talk
-- [ ] Voice activity detection (stop recording when you stop speaking)
+- [x] Always-listening with voice activity detection
+- [x] Desktop UI, tray icon, Windows installer
+- [ ] Neural wake word ("Hey Assistant") with openWakeWord
 - [ ] LLM fallback for questions the built-in skills don't cover
 - [ ] Offline TTS option
-- [ ] System tray app + desktop packaging (PyInstaller)
 - [ ] More languages
 
 ## Development

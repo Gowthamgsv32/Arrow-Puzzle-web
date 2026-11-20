@@ -11,7 +11,10 @@ def _load_dotenv() -> None:
         from dotenv import load_dotenv
     except ImportError:
         return
-    load_dotenv()
+    from personal_assistant.paths import env_file, user_data_dir
+
+    load_dotenv(env_file())
+    load_dotenv(user_data_dir() / ".env")
 
 
 @dataclass(frozen=True)
@@ -21,8 +24,13 @@ class Settings:
     whisper_model: str = "small"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
-    record_seconds: float = 5.0
     sample_rate: int = 16_000
+    # Continuous-listening voice activity detection
+    vad_min_rms: float = 0.010  # absolute floor for "this is speech" (raise in noisy rooms)
+    vad_silence_ms: int = 700  # pause length that ends a sentence
+    vad_max_seconds: float = 15.0  # hard cap per utterance
+    # Act only on commands that start with this word (empty = act on everything)
+    wake_word: str = ""
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -37,5 +45,8 @@ class Settings:
             whisper_model=os.getenv("PA_WHISPER_MODEL", "small"),
             whisper_device=os.getenv("PA_WHISPER_DEVICE", "cpu"),
             whisper_compute_type=os.getenv("PA_WHISPER_COMPUTE_TYPE", "int8"),
-            record_seconds=float(os.getenv("PA_RECORD_SECONDS", "5")),
+            vad_min_rms=float(os.getenv("PA_VAD_MIN_RMS", "0.010")),
+            vad_silence_ms=int(os.getenv("PA_VAD_SILENCE_MS", "700")),
+            vad_max_seconds=float(os.getenv("PA_VAD_MAX_SECONDS", "15")),
+            wake_word=os.getenv("PA_WAKE_WORD", "").strip(),
         )
