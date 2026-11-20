@@ -1,98 +1,110 @@
-# Arrow-Puzzle-web
+# Personal Assistant
 
-A web-based Arrow Puzzle game, built with React and Vite.
+A voice-controlled desktop personal assistant that understands **English** and **தமிழ் (Tamil)**,
+designed so more languages can be added by dropping in a single file.
 
-## How to play
+## Why Python
 
-Each level draws a **shape** — heart, ball, star, apple, diamond — out of many
-**bent pieces**. Every piece is a self-avoiding bent line that turns 90° at its
-corners, with a head at its front. Tap a piece to **send it off the board**,
-head-first along its own path — but only if the straight path from its head to
-the edge is empty. If another piece blocks that path, it can't move and you lose
-a heart. Lose all three hearts and the round is over. Clear every piece to
-advance to the next level (and the next shape).
+| Need | Python ecosystem |
+|---|---|
+| Speech-to-text in Tamil + English (offline) | `faster-whisper` (OpenAI Whisper, ~100 languages incl. Tamil) |
+| Natural Tamil/English voices | `edge-tts` (`ta-IN-PallaviNeural`, `ta-IN-ValluvarNeural`, `en-IN-NeerjaNeural`) |
+| Wake word ("Hey Assistant") | `openWakeWord`, `porcupine` |
+| LLM / AI brain | Official SDKs for Claude, OpenAI, local models (Ollama, llama.cpp) |
+| Desktop automation | `pyautogui`, `pywinauto`, `subprocess`, `webbrowser` |
+| Desktop UI later | PySide6 / Qt, or a tray icon with `pystray` |
+| Packaging | PyInstaller / Briefcase → `.exe`, `.app`, Linux binary |
 
-**Pick your style:** a toggle in the header switches the pieces between
-**arrows** (default) and **snakes** — your choice is saved locally.
+The heavy work (speech recognition) runs in optimised C++/CUDA inside `faster-whisper`, so Python's
+speed is not the bottleneck.
 
-The lines **completely fill the shape with no interior gaps** (dozens of arrows
-per level), never overlap, and every level is **guaranteed solvable** (and can
-never dead-end). Your progress is saved locally so you resume where you left
-off.
+## Project layout
 
-## Getting started
+```
+src/personal_assistant/
+├── app.py              # listen → understand → act → reply loop
+├── config.py           # settings from env / .env
+├── i18n.py             # loads locales/*.yaml
+├── intents.py          # language-agnostic intent matching
+├── locales/
+│   ├── en.yaml         # English phrases, replies, TTS voice
+│   └── ta.yaml         # Tamil phrases, replies, TTS voice
+├── skills/
+│   ├── base.py         # @skill registry
+│   └── builtin.py      # greet, time, date, open app/site, web search, exit
+└── audio/
+    ├── recorder.py     # microphone capture
+    ├── stt.py          # speech-to-text (faster-whisper)
+    └── tts.py          # text-to-speech (edge-tts)
+tests/
+```
+
+## Setup
+
+Requires Python 3.10+.
 
 ```bash
-npm install      # install dependencies
-npm run dev      # start the dev server
-npm run build    # build for production
-npm run preview  # preview the production build
-npm run lint     # run ESLint
-npm test         # run the engine + generator unit tests (node:test)
+python -m venv .venv
+# Windows: .venv\Scripts\activate   |   macOS/Linux: source .venv/bin/activate
+pip install -e ".[voice,dev]"
+cp .env.example .env        # optional: tweak languages / model size
 ```
 
-The dev server runs at `http://localhost:5173` by default.
+## Run
 
-## Project structure
-
-```
-index.html            # app entry HTML
-src/
-  main.jsx            # React entry point
-  App.jsx             # root component: state + animation orchestration
-  App.css             # game styles
-  index.css           # global styles
-  game/
-    constants.js      # directions
-    engine.js         # pure rules: bent lines, release logic, win/lose
-    generator.js      # random non-overlapping solvable line generator (masked)
-    shapes.js         # silhouette masks (heart, ball, star, apple, diamond)
-    train.js          # travel-path math for the slide-out animation
-    *.test.js         # unit tests (zero-dependency, node:test)
-  hooks/
-    useGame.js        # React binding + localStorage progress
-  components/
-    HUD.jsx           # level, line count, hearts, shape name
-    Arrow.jsx         # one thin bent line + arrowhead, drawn as an SVG path
-    Board.jsx         # board SVG + train (slide-out) rendering
-    Overlay.jsx       # win / lose modal
-public/               # static assets
-vite.config.js        # Vite configuration
-eslint.config.js      # ESLint configuration
+```bash
+personal-assistant           # voice mode: press Enter, then speak
+personal-assistant --text    # type commands (no microphone needed)
 ```
 
-## Architecture notes
+The first voice run downloads the Whisper model (`small` ≈ 460 MB). Use `medium` or
+`large-v3` in `.env` for better Tamil accuracy if your machine (or GPU) can handle it.
+Text-to-speech uses Edge neural voices and needs an internet connection.
 
-- **`game/engine.js`** is pure and framework-free — all rules live here and are
-  covered by unit tests, so the logic is verifiable without a browser.
-- **Full fill + solvability guarantee (carve/peel):** the generator simulates
-  *clearing* the shape. It repeatedly finds a cell that can exit now (a clear
-  straight path to the board edge), makes it a head, and grows a bent body
-  backward into the remaining cells, removing them. The order it carves is a
-  valid solve order, so every shape cell ends up in a line (no gaps), each
-  line's head path is clear when released (solvable), and because removing a
-  line only frees cells, no play order can dead-end. Tests prove full coverage
-  and solvability across many shapes and seeds.
+### Example commands
 
-## Deployment (GitHub Pages)
+| English | தமிழ் |
+|---|---|
+| hello | வணக்கம் |
+| what time is it | மணி என்ன |
+| what is the date | இன்று தேதி என்ன |
+| open youtube | யூடியூப் திற |
+| search for weather in Chennai | சென்னை வானிலை தேடு |
+| goodbye | நிறுத்து |
 
-This project auto-deploys to GitHub Pages via GitHub Actions
-(`.github/workflows/deploy.yml`) on every push to `main`.
+The assistant replies in the language you spoke.
 
-**One-time setup:** in the repository, go to
-**Settings → Pages → Build and deployment → Source** and select
-**GitHub Actions**.
+## Adding a language
 
-Once enabled, the live site is served at:
+1. Copy `src/personal_assistant/locales/en.yaml` to e.g. `hi.yaml` (Hindi) and translate the
+   phrases and responses. Pick a voice from `edge-tts --list-voices`.
+2. Add the code to `PA_LANGUAGES` in `.env` (e.g. `PA_LANGUAGES=en,ta,hi`).
 
-<https://gowthamgsv32.github.io/Arrow-Puzzle-web/>
+`tests/test_intents.py` checks every locale defines the same intents and responses.
 
-The Vite `base` in `vite.config.js` is set to `/Arrow-Puzzle-web/` so asset
-paths resolve correctly under the repository subpath.
+## Adding a skill
 
-## Tech stack
+```python
+# src/personal_assistant/skills/builtin.py (or a new module imported in skills/__init__.py)
+@skill("weather")
+def weather(intent, locale):
+    return SkillResult(locale.say("weather", city=intent.argument))
+```
 
-- [React 18](https://react.dev/)
-- [Vite 5](https://vitejs.dev/)
-- [ESLint 9](https://eslint.org/)
-- [GitHub Pages](https://pages.github.com/) + GitHub Actions
+Then add `weather` trigger phrases and a `weather` response to every locale file.
+
+## Roadmap
+
+- [ ] Wake word instead of push-to-talk
+- [ ] Voice activity detection (stop recording when you stop speaking)
+- [ ] LLM fallback for questions the built-in skills don't cover
+- [ ] Offline TTS option
+- [ ] System tray app + desktop packaging (PyInstaller)
+- [ ] More languages
+
+## Development
+
+```bash
+pytest
+ruff check .
+```

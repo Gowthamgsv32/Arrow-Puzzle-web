@@ -1,0 +1,24 @@
+name: English
+# Microsoft Edge neural voice used by edge-tts
+tts_voice: en-IN-NeerjaNeural
+
+intents:
+  greet: [hello, hi, hey, good morning, good evening]
+  time: [what time is it, what is the time, current time, time now]
+  date: [what is the date, what's the date, today's date, what day is it]
+  open: [open, launch, start]
+  search: [search for, search, google, look up]
+  exit: [goodbye, bye, exit, quit, stop listening]
+
+responses:
+  greet: ["Hello! How can I help you?", "Hi there! What can I do for you?"]
+  time: "It is {time}."
+  date: "Today is {date}."
+  opening: "Opening {target}."
+  open_missing: "What should I open?"
+  open_failed: "Sorry, I couldn't open {target}."
+  searching: "Searching for {query}."
+  search_missing: "What should I search for?"
+  exit: "Goodbye!"
+  unknown: "Sorry, I didn't understand that."
+  listening: "Listening..."
